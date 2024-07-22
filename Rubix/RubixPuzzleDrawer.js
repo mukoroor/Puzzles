@@ -164,24 +164,12 @@ export default class RubixPuzzleDrawer extends Drawer {
 
         if (length === 1) return [[0, 0, 0, 6, 0, 0]];
 
-        console.time("3d")
-        const positions = [];
-        for (let i = 0; i < length; i++) {
-            for (let j = 0; j < length; j++) {
-                for (let k = 0; k < length; k++) {
-                    positions.push([i, j, k]);
-                }
-            }
-        }
-        console.timeEnd("3d")
-        console.time("map")
         const pieceMap = {};
         const queue = [this.puzzle.faces[5].corners[0]];
 
         while(queue.length) {
             const currPiece = queue.shift();
             if (!pieceMap[currPiece.id]) pieceMap[currPiece.id] = [0, 0, 0];
-            if (currPiece.id === 21) console.log(currPiece)
             const coloredFaces = [];
             for (const [faceIndex, face] of currPiece.faceData.entries()) {
                 if (typeof face === 'number') coloredFaces.push(face);
@@ -193,10 +181,6 @@ export default class RubixPuzzleDrawer extends Drawer {
 
             pieceMap[currPiece.id].push(...coloredFaces, ...Array(3 - coloredFaces.length).fill(-1))
         }
-        console.timeEnd("map");
-
-        console.log(pieceMap);
-
         return Object.values(pieceMap);
     }
 
@@ -215,7 +199,6 @@ export default class RubixPuzzleDrawer extends Drawer {
     #incrementPuzzleSize(delta) {
         const newLength = this.puzzle.length + delta;
         if (newLength < 1 || newLength > 10) return;
-        console.log(newLength);
         this.puzzle = new RubixPuzzle(newLength);
         this.updateRender = true;
     }

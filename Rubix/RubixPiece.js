@@ -19,6 +19,27 @@ export default class RubixPiece {
         }
     }
 
+    generateNextData(mimicPiece, constFace) {
+        // const faceData = this.faceData.map((e, i) => {
+        //     if (e !== undefined && typeof e !== 'number') return e
+        // });
+        // faceData[5 - constFace] = mimicPiece.getFace(5 - constFace);
+
+        const faceData = [...this.faceData];
+        let curr = this.activations[constFace].next
+        let currMimic = mimicPiece.activations[constFace].next
+
+
+        faceData[constFace] = mimicPiece.getFace(constFace);
+        while (curr.face !== constFace) {
+            faceData[curr.face] = mimicPiece.getFace(currMimic.face);
+            curr = curr.next;
+            currMimic = currMimic.next;
+        }
+
+        return faceData
+    }
+
     setFace(index, value) {
         this.faceData[index] = value;
     }

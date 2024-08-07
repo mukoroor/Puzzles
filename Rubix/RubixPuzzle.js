@@ -7,10 +7,10 @@ export default class RubixPuzzle {
         "012",
         "024",
         "043",
-        "513",
-        "521",
-        "542",
         "534",
+        "542",
+        "521",
+        "513",
     ];
 
     length;
@@ -89,6 +89,10 @@ export default class RubixPuzzle {
         }
     }
 
+    get pieceCount() {
+        return Math.pow(this.length, 3) - Math.pow(Math.max(this.length - 2, 0), 3);
+    }
+
     updateColors(newColors) { }
 
     undo() { }
@@ -101,3 +105,7 @@ export default class RubixPuzzle {
         return this.faces.map(face => face.toString()).join('\n')
     }
 }
+
+const p = new RubixPuzzle(1);
+
+// console.log(p.faces[0].corners[0].activations)

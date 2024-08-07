@@ -4,8 +4,8 @@ export default class RubixFace {
     static FACE_ADJACENCY = Object.freeze({
         0: [1, 2, 4, 3],
         1: [0, 3, 5, 2],
-        2: [0, 1, 5, 4]
-    })
+        2: [0, 1, 5, 4],
+    });
     id;
     #lengthFunc;
     corners = [];
@@ -19,7 +19,7 @@ export default class RubixFace {
     }
 
     get length() {
-        return this.#lengthFunc()
+        return this.#lengthFunc();
     }
 
     addCenter(faceCenter) {
@@ -36,6 +36,25 @@ export default class RubixFace {
 
     addInterior(faceInterior) {
         this.interiors.push(faceInterior);
+    }
+
+    rotate(direction, count) {
+        count = count % 4;
+
+        console.log(this.corners)
+        const nextCornerPieces = this.#nextCornerPieces(direction, count);
+        console.log(nextCornerPieces);
+
+        
+        const updatedPieceData = this.corners.map((e, i) => nextCornerPieces[i].generateNextData(e, this.id));
+
+        console.log(updatedPieceData)
+        
+        nextCornerPieces.forEach((e, i) => {
+            const nextData = updatedPieceData[i];
+            
+            e.faceData = nextData;
+        })
     }
 
     fill() {
@@ -61,7 +80,7 @@ export default class RubixFace {
         }
 
         const maxChain = length - 1;
-        const faceJoints = this.#jointPath();
+        const faceJoints = this.#jointPath;
         const cycle = Array(4 * maxChain);
 
         for (let i = 0; i < 4; i++) {
@@ -69,7 +88,8 @@ export default class RubixFace {
                 jointEnd = 5 - jointStart;
             for (let j = 0; j < maxChain; j++) {
                 let piece = new RubixPiece(`${this.id}`, `${this.id}`, "INTERIOR"),
-                    prevPiece = cycle[(cycle.length + maxChain * i + j - 1) % cycle.length];
+                    prevPiece =
+                        cycle[(cycle.length + maxChain * i + j - 1) % cycle.length];
                 if (i || j) {
                     this.addInterior(piece);
                     RubixPiece.join(piece, prevPiece, jointStart, jointEnd);
@@ -78,15 +98,24 @@ export default class RubixFace {
                 cycle[maxChain * i + j] = piece;
             }
         }
-        RubixPiece.join(cycle[0], cycle[4 * maxChain - 1], faceJoints[0], 5 - faceJoints[0]);
+        RubixPiece.join(
+            cycle[0],
+            cycle[4 * maxChain - 1],
+            faceJoints[0],
+            5 - faceJoints[0]
+        );
 
         return cycle;
     }
 
     #buildCornerRing() {
-        const joints = this.#jointPath();
-        const targetCornerActivations = [this.id, joints[0], joints[1]]
-        let target = this.corners.find(corner => targetCornerActivations.every(activation => typeof corner.getFace(activation) === 'number'))
+        const joints = this.#jointPath;
+        const targetCornerActivations = [this.id, joints[0], joints[1]];
+        let target = this.corners.find((corner) =>
+            targetCornerActivations.every(
+                (activation) => typeof corner.getFace(activation) === "number"
+            )
+        );
 
         const outerChain = this.length - 1;
         const cycle = Array(4 * outerChain);
@@ -103,18 +132,26 @@ export default class RubixFace {
     }
 
     #merge(innerRing, outerRing) {
-        const mergeJoints = this.#jointPath();
+        const mergeJoints = this.#jointPath;
         const innerSize = Math.floor(innerRing.length / 4) + 1;
         mergeJoints.push(mergeJoints.shift(), null);
 
         innerRing.unshift(innerRing.pop());
 
-        let innerPointer = 0, outerPointer = 0, counter = 0;
-        let face = mergeJoints.shift(), flag = false;
+        let innerPointer = 0,
+            outerPointer = 0,
+            counter = 0;
+        let face = mergeJoints.shift(),
+            flag = false;
 
         while (innerPointer <= innerRing.length && face !== null) {
             counter++;
-            RubixPiece.join(innerRing[innerPointer++ % innerRing.length], outerRing[outerPointer++], face, 5 - face);
+            RubixPiece.join(
+                innerRing[innerPointer++ % innerRing.length],
+                outerRing[outerPointer++],
+                face,
+                5 - face
+            );
             if (!(counter % innerSize) && !flag) {
                 innerPointer--;
                 outerPointer++;
@@ -126,16 +163,28 @@ export default class RubixFace {
         }
     }
 
-    #jointPath() {
+    #nextCornerPieces(direction, count) {
+        return direction === this.#cornerOrientation
+            ? this.corners.map((_, i) => this.corners[(i + count) % 4])
+            : this.corners.map((_, i) => this.corners[(i - count + 4) % 4]);
+    }
+
+    get #jointPath() {
         return this.id < 3
             ? [...RubixFace.FACE_ADJACENCY[this.id]]
-            : RubixFace.FACE_ADJACENCY[5 - this.id].toReversed()
+            : RubixFace.FACE_ADJACENCY[5 - this.id].toReversed();
+    }
+
+    get #cornerOrientation() {
+        return this.id % 3 ? "cw" : "ccw";
     }
 
     toString() {
         return `~~${this.id}~~
-                CORNERS: ${this.corners.map(corner => corner.toString())}\n
-                EDGES: ${this.edges.map(edge => edge.toString())}\n
-                INTERIORS: ${this.interiors.map(interior => interior.toString())}\n\n`
+                CORNERS: ${this.corners.map((corner) => corner.toString())}\n
+                EDGES: ${this.edges.map((edge) => edge.toString())}\n
+                INTERIORS: ${this.interiors.map((interior) =>
+            interior.toString()
+        )}\n\n`;
     }
 }

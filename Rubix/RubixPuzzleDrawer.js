@@ -6,10 +6,6 @@ import { frag_vert_shader } from "./RubixShader.js";
 
 
 export default class RubixPuzzleDrawer extends Drawer {
-    static MESH_DATA = Object.freeze({
-        TRIANGLES: new Float32Array(ROUNDED_SQUARE_INDICES.flat().reduce((arr, vertexIndex) => arr.concat(ROUNDED_SQUARE_VERTICES[vertexIndex]), []).flat()),
-        TRIANGLE_ENUMERATION: new Float32Array(ROUNDED_SQUARE_INDICES.reduce((arr, _, i) => arr.concat([i, i, i]), []))
-    });
     static PIECE_FACE_DELTAS = Object.freeze({
         0: [0, 1, 0],
         1: [0, 0, -1],
@@ -44,11 +40,12 @@ export default class RubixPuzzleDrawer extends Drawer {
     
     async draw() {
         let positions;
+        await this.#setupConsts();
         const frame = async() => {
             if (this.hardUpdate) {
                 this.destroyBuffers();
                 positions = this.#calculatePieceCoordinates();
-                await this.setUpBuffers(positions);
+                await this.#setupAndFillPieceBuffers(positions);
                 if (this.movementData[1] > this.puzzle.length - 1) this.movementData[0] = this.puzzle.length - 1;
                 this.hardUpdate = false;
                 this.updateRender = true;
@@ -63,12 +60,25 @@ export default class RubixPuzzleDrawer extends Drawer {
         window.requestAnimationFrame(frame);
     }
 
-    destroyBuffers() {
+    async #setupConsts() {
+        if (!this.gpuData.DEVICE) await this.init("webgpu");
+        
+        const TRIANGLES = new Float32Array(ROUNDED_SQUARE_INDICES.flat().reduce((arr, vertexIndex) => arr.concat(ROUNDED_SQUARE_VERTICES[vertexIndex]), []).flat()),
+        const TRIANGLE_ENUMERATION = new Float32Array(ROUNDED_SQUARE_INDICES.reduce((arr, _, i) => arr.concat([i, i, i]), []))
+        this.createBuffer("triangles_buffer", TRIANGLES.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+        this.createBuffer("triangle_enum", TRIANGLE_ENUMERATION.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+        this.writeBuffer1to1("triangles_buffer", TRIANGLES);
+        this.writeBuffer1to1("triangle_enum", TRIANGLE_ENUMERATION);
+
+        this.createShader("frag_vert", frag_vert_shader);
+    }
+
+    #destroyBuffers() {
         this.getBuffer('piece_positions')?.destroy();
         this.getBuffer('piece_colors')?.destroy()
     }
 
-    async setUpBuffers(piecePositions) {
+    async #setupAndFillPieceBuffers(piecePositions) {
         if (!this.gpuData.DEVICE) await this.init("webgpu");
 
         // const VERTICES = new Float32Array(ROUNDED_SQUARE_VERTICES.flat())
@@ -79,21 +89,13 @@ export default class RubixPuzzleDrawer extends Drawer {
 
         // this.createBuffer("vertex_buffer", VERTICES.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
         // this.createBuffer("index_buffer", INDICES.byteLength, GPUBufferUsage.INDEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
-        if (!this.getBuffer('triangles_buffer')) this.createBuffer("triangles_buffer", RubixPuzzleDrawer.MESH_DATA.TRIANGLES.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
-        if (!this.getBuffer('triangle_enum')) this.createBuffer("triangle_enum", RubixPuzzleDrawer.MESH_DATA.TRIANGLE_ENUMERATION.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
         this.createBuffer("piece_positions", PIECE_POSITIONS.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
         this.createBuffer("piece_colors", PIECE_COLORS.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
 
         // this.writeBuffer1to1("vertex_buffer", VERTICES);
         // this.writeBuffer1to1("index_buffer", INDICES);
-        if (!this.getBuffer('triangles_buffer')) this.writeBuffer1to1("triangles_buffer", RubixPuzzleDrawer.MESH_DATA.TRIANGLES);
-        if (!this.getBuffer('triangle_enum')) this.writeBuffer1to1("triangle_enum", RubixPuzzleDrawer.MESH_DATA.TRIANGLE_ENUMERATION);
         this.writeBuffer1to1("piece_positions", PIECE_POSITIONS);
         this.writeBuffer1to1("piece_colors", PIECE_COLORS);
-
-
-        this.createShader("frag_vert", frag_vert_shader);
-        
     }
 
     createRenderPipeline() {
@@ -197,7 +199,7 @@ export default class RubixPuzzleDrawer extends Drawer {
         passEncoder.setVertexBuffer(3, this.getBuffer("piece_colors"));
         // passEncoder.setIndexBuffer(this.getBuffer("index_buffer"), "uint32");
         // passEncoder.drawIndexed(INDICES.length, 8);
-        passEncoder.draw(RubixPuzzleDrawer.MESH_DATA.TRIANGLES.length / 3, this.puzzle.pieceCount);
+        passEncoder.draw(TRIANGLES.length / 3, this.puzzle.pieceCount);
         passEncoder.end();
         this.gpuData.DEVICE.queue.submit([commandEncoder.finish()]);
     }

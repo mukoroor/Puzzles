@@ -41,10 +41,10 @@ export default class RubixFace {
         this.interiors.push(faceInterior);
     }
 
-    rotate(count, direction = this.#cornerOrientation, depth = 0) {
+    rotate(count, direction = this.#cornerOrientation, depth = 2) {
         count = count % 4;
 
-        if (!count || depth > this.length - 2) return;
+        if (!count || depth > this.length - 1) return;
 
         const depthJoint = 5 - this.id;
         const nextBoundIndex =
@@ -64,8 +64,10 @@ export default class RubixFace {
             (nextBoundIndex + 1) % 4
         );
 
+        const constFace = depth + 1 === this.length ? depthJoint: this.id
+
         const updatedPieceData = start.map((e, i) =>
-            finish[i].generateNextData(e, this.id)
+            finish[i].generateNextData(e, constFace)
         );
 
         finish.forEach((e, i) => {

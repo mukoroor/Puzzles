@@ -14,28 +14,45 @@ export default class RubixPuzzleDrawer extends Drawer {
         0: [0, 1, 0],
         1: [0, 0, -1],
         2: [1, 0, 0],
-    })
-
-    puzzle = new RubixPuzzle(5);
+    });
+    movementData = Array(2);
+    puzzle = new RubixPuzzle(3);
     
     constructor() {
         super();
         this.setUpCursorListener();
-        this.setUpKeyListener('ArrowUp', () => this.#incrementPuzzleSize(1));
-        this.setUpKeyListener('ArrowDown', () => this.#incrementPuzzleSize(-1));
-        console.log(this.puzzle)
+        this.setUpKeyListener((type) => type === 'ArrowUp', () => this.#incrementPuzzleSize(1));
+        this.setUpKeyListener((type) => type ==='ArrowDown', () => this.#incrementPuzzleSize(-1));
+        this.setUpKeyListener((type) => type ==='r', () => {
+            this.puzzle = new RubixPuzzle(this.puzzle.length);
+            this.hardUpdate = true;
+        });
+        this.setUpKeyListener((type) => type === 's', () => {
+            this.puzzle.scramble()
+            this.hardUpdate = true;
+        });
+        this.setUpKeyListener((type) => type === 'e', () => {
+            this.puzzle.scramble(10)
+            this.hardUpdate = true;
+        });
+        this.setUpKeyListener((type) => type === 'c', () => this.#rotate('cw'));
+        this.setUpKeyListener((type) => type === 'w', () => this.#rotate('ccw'));
+        this.setUpKeyListener((type) => type === '+', () => this.#changeDepth(1));
+        this.setUpKeyListener((type) => type === '-', () => this.#changeDepth(-1));
+        this.setUpKeyListener((type) => !isNaN(type), (faceId) => this.#changeFace(+faceId));
     }
     
     async draw() {
-        let positions = this.#calculatePieceCoordinates();
-        await this.setUpBuffers(positions);
+        let positions;
         const frame = async() => {
             if (this.hardUpdate) {
                 positions = this.#calculatePieceCoordinates();
                 await this.setUpBuffers(positions);
+                if (this.movementData[1] > this.puzzle.length - 1) this.movementData[0] = this.puzzle.length - 1;
                 this.hardUpdate = false;
                 this.updateRender = true;
             }
+
             if (this.updateRender) {
                 this.updateRender = false;
                 this.render(this.createRenderPipeline(), positions.length)
@@ -219,6 +236,25 @@ export default class RubixPuzzleDrawer extends Drawer {
         const newLength = this.puzzle.length + delta;
         if (newLength < 1 || newLength > 25) return;
         this.puzzle = new RubixPuzzle(newLength);
+        this.hardUpdate = true;
+        console.log(`%cNEW RUBIX SIZE ${newLength}`, "font-weight: bold; color: orange; font-size: 1.25em;")
+    }
+
+    #changeFace(faceId) {
+        if (faceId >= 0 && faceId < 6) {
+            this.movementData[0] = faceId;
+        }
+    }
+
+    #changeDepth(delta) {
+        let newDepth = (this.movementData[1] || 0) + delta;
+        if (newDepth < 0 || newDepth > this.puzzle.length - 1) return;
+        this.movementData[1] = newDepth;
+    }
+
+    #rotate(direction) {
+        if (this.movementData[0] === undefined) return;
+        this.puzzle.rotate(this.movementData[0], 1, direction, this.movementData[1] || 0)
         this.hardUpdate = true;
     }
 }

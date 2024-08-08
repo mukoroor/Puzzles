@@ -21,11 +21,6 @@ export default class RubixPiece {
     }
 
     generateNextData(mimicPiece, constFace) {
-        // const faceData = this.faceData.map((e, i) => {
-        //     if (e !== undefined && typeof e !== 'number') return e
-        // });
-        // faceData[5 - constFace] = mimicPiece.getFace(5 - constFace);
-
         const constFaceExists = !!this.activations[constFace];
         let marker = false;
         const faceData = [...this.faceData];

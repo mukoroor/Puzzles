@@ -3,6 +3,7 @@ export default class Drawer {
     context;
     cursor = {x: -1, y: -1, z: -1};
     updateRender = true;
+    hardUpdate = true;
     gpuData = {
         ratio: 1,
         DEVICE: null,
@@ -120,9 +121,9 @@ export default class Drawer {
         })
     }
 
-    setUpKeyListener(keyType, work) {
+    setUpKeyListener(keyPredicate, work) {
         document.addEventListener('keydown', (e) => {
-            if (e.key === keyType) work();
+            if (keyPredicate(e.key)) work(e.key);
         });
     }
 

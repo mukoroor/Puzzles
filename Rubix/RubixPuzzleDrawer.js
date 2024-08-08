@@ -43,7 +43,7 @@ export default class RubixPuzzleDrawer extends Drawer {
         await this.#setupConsts();
         const frame = async() => {
             if (this.hardUpdate) {
-                this.destroyBuffers();
+                this.#destroyBuffers();
                 positions = this.#calculatePieceCoordinates();
                 await this.#setupAndFillPieceBuffers(positions);
                 if (this.movementData[1] > this.puzzle.length - 1) this.movementData[0] = this.puzzle.length - 1;

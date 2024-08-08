@@ -116,13 +116,13 @@ export default class RubixPuzzle {
 
     reset() { }
 
-    rotate(face, count, direction, depth) {
+    rotate(face, count, direction = 'cw', depth = 0) {
         if (this.length === 1) return;
         this.moves.push([face, count, direction, depth]);
         this.faces[face].rotate(count, direction, depth);
     }
 
-    scramble(scrambleCount = SCRAMBLE_MOVES) {
+    scramble(scrambleCount = SCRAMBLE_MOVES, withLog = true) {
         if (this.length === 1) return;
         console.time('scramble');
         let face, depth, count, direction;
@@ -133,8 +133,8 @@ export default class RubixPuzzle {
             count = Math.floor(Math.random() * 3);
             this.rotate(face, count, direction, depth);
         }
-        console.log("%cThese are the moves to fix the cube", "font-weight: bold; color: orange; font-size: 1.25em;");
-        console.table([["Face", "RotCount", "Depth", "Depth"]].concat(this.moves.toReversed().map(e => {
+        if (withLog) console.log("%cThese are the moves to fix the cube", "font-weight: bold; color: orange; font-size: 1.25em;");
+        if (withLog) console.table([["Face", "RotCount", "Depth", "Depth"]].concat(this.moves.toReversed().map(e => {
             if (e[2] === 'cw') e[2] = "ccw"
             else e[2] = 'cw'
             return e;
@@ -167,3 +167,8 @@ export default class RubixPuzzle {
 }
 
 const SCRAMBLE_MOVES = 100;
+
+console.time("testInit")
+const testRubix = new RubixPuzzle(1000);
+console.timeEnd("testInit")
+testRubix.scramble(SCRAMBLE_MOVES, false)

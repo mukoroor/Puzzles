@@ -46,6 +46,7 @@ export default class RubixPuzzleDrawer extends Drawer {
         let positions;
         const frame = async() => {
             if (this.hardUpdate) {
+                this.destroyBuffers();
                 positions = this.#calculatePieceCoordinates();
                 await this.setUpBuffers(positions);
                 if (this.movementData[1] > this.puzzle.length - 1) this.movementData[0] = this.puzzle.length - 1;
@@ -62,6 +63,11 @@ export default class RubixPuzzleDrawer extends Drawer {
         window.requestAnimationFrame(frame);
     }
 
+    destroyBuffers() {
+        this.getBuffer('piece_positions')?.destroy();
+        this.getBuffer('piece_colors')?.destroy()
+    }
+
     async setUpBuffers(piecePositions) {
         if (!this.gpuData.DEVICE) await this.init("webgpu");
 
@@ -73,15 +79,15 @@ export default class RubixPuzzleDrawer extends Drawer {
 
         // this.createBuffer("vertex_buffer", VERTICES.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
         // this.createBuffer("index_buffer", INDICES.byteLength, GPUBufferUsage.INDEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
-        this.createBuffer("triangles_buffer", RubixPuzzleDrawer.MESH_DATA.TRIANGLES.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
-        this.createBuffer("triangle_enum", RubixPuzzleDrawer.MESH_DATA.TRIANGLE_ENUMERATION.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+        if (!this.getBuffer('triangles_buffer')) this.createBuffer("triangles_buffer", RubixPuzzleDrawer.MESH_DATA.TRIANGLES.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+        if (!this.getBuffer('triangle_enum')) this.createBuffer("triangle_enum", RubixPuzzleDrawer.MESH_DATA.TRIANGLE_ENUMERATION.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
         this.createBuffer("piece_positions", PIECE_POSITIONS.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
         this.createBuffer("piece_colors", PIECE_COLORS.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
 
         // this.writeBuffer1to1("vertex_buffer", VERTICES);
         // this.writeBuffer1to1("index_buffer", INDICES);
-        this.writeBuffer1to1("triangles_buffer", RubixPuzzleDrawer.MESH_DATA.TRIANGLES);
-        this.writeBuffer1to1("triangle_enum", RubixPuzzleDrawer.MESH_DATA.TRIANGLE_ENUMERATION);
+        if (!this.getBuffer('triangles_buffer')) this.writeBuffer1to1("triangles_buffer", RubixPuzzleDrawer.MESH_DATA.TRIANGLES);
+        if (!this.getBuffer('triangle_enum')) this.writeBuffer1to1("triangle_enum", RubixPuzzleDrawer.MESH_DATA.TRIANGLE_ENUMERATION);
         this.writeBuffer1to1("piece_positions", PIECE_POSITIONS);
         this.writeBuffer1to1("piece_colors", PIECE_COLORS);
 

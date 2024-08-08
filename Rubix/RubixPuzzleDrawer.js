@@ -63,7 +63,7 @@ export default class RubixPuzzleDrawer extends Drawer {
     async #setupConsts() {
         if (!this.gpuData.DEVICE) await this.init("webgpu");
         
-        const TRIANGLES = new Float32Array(ROUNDED_SQUARE_INDICES.flat().reduce((arr, vertexIndex) => arr.concat(ROUNDED_SQUARE_VERTICES[vertexIndex]), []).flat()),
+        const TRIANGLES = new Float32Array(ROUNDED_SQUARE_INDICES.flat().reduce((arr, vertexIndex) => arr.concat(ROUNDED_SQUARE_VERTICES[vertexIndex]), []).flat())
         const TRIANGLE_ENUMERATION = new Float32Array(ROUNDED_SQUARE_INDICES.reduce((arr, _, i) => arr.concat([i, i, i]), []))
         this.createBuffer("triangles_buffer", TRIANGLES.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
         this.createBuffer("triangle_enum", TRIANGLE_ENUMERATION.byteLength, GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);

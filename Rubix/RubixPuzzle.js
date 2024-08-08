@@ -168,7 +168,7 @@ export default class RubixPuzzle {
 
 const SCRAMBLE_MOVES = 100;
 
-console.time("testInit")
-const testRubix = new RubixPuzzle(1000);
-console.timeEnd("testInit")
-testRubix.scramble(SCRAMBLE_MOVES, false)
+//console.time("testInit")
+//const testRubix = new RubixPuzzle(1000);
+//console.timeEnd("testInit")
+//testRubix.scramble(SCRAMBLE_MOVES, false)

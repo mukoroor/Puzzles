@@ -13,6 +13,7 @@ export default class RubixPiece {
             curr.face = +activationString[i];
             this.activations[curr.face] = curr;
             this.setFace(curr.face, +colorIndices[i]);
+            if (!i) this.activations.start = curr;
             if (i + 1 === activationString.length) curr.next = this.activations[activationString[0]];
             else curr.next = {};
             curr = curr.next;
@@ -25,13 +26,17 @@ export default class RubixPiece {
         // });
         // faceData[5 - constFace] = mimicPiece.getFace(5 - constFace);
 
+        const constFaceExists = !!this.activations[constFace];
+        let marker = false;
         const faceData = [...this.faceData];
-        let curr = this.activations[constFace].next
-        let currMimic = mimicPiece.activations[constFace].next
+        let curr = this.activations[constFace] || this.activations.start;
+        let currMimic = mimicPiece.activations[constFace] || mimicPiece.activations.start;
+
+        if (!constFaceExists && curr.face === currMimic.face) curr = curr.next;
 
 
-        faceData[constFace] = mimicPiece.getFace(constFace);
-        while (curr.face !== constFace) {
+        while (!marker || (constFaceExists && curr.face !== constFace) || (!constFaceExists && currMimic.face !== mimicPiece.activations.start.face)) {
+            marker = true;
             faceData[curr.face] = mimicPiece.getFace(currMimic.face);
             curr = curr.next;
             currMimic = currMimic.next;

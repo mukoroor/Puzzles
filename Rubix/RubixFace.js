@@ -3,8 +3,11 @@ import RubixPiece from "./RubixPiece.js";
 export default class RubixFace {
     static FACE_ADJACENCY = Object.freeze({
         0: [1, 2, 4, 3],
-        1: [0, 3, 5, 2],
-        2: [0, 1, 5, 4],
+        1: [0, 2, 5, 3],
+        2: [0, 4, 5, 1],
+        3: [0, 4, 5, 1],
+        4: [0, 3, 5, 2],
+        5: [4, 2, 1, 3],
     });
     id;
     #lengthFunc;
@@ -38,23 +41,37 @@ export default class RubixFace {
         this.interiors.push(faceInterior);
     }
 
-    rotate(direction, count) {
+    rotate(count, direction = this.#cornerOrientation, depth = 0) {
         count = count % 4;
 
-        console.log(this.corners)
-        const nextCornerPieces = this.#nextCornerPieces(direction, count);
-        console.log(nextCornerPieces);
+        if (!count || depth > this.length - 2) return;
 
-        
-        const updatedPieceData = this.corners.map((e, i) => nextCornerPieces[i].generateNextData(e, this.id));
+        const depthJoint = 5 - this.id;
+        const nextBoundIndex =
+            (direction === this.#cornerOrientation ? count : 4 - count) % 4;
 
-        console.log(updatedPieceData)
-        
-        nextCornerPieces.forEach((e, i) => {
+        let currBound = this.corners[0],
+            nextBound = this.corners[nextBoundIndex];
+
+        for (let i = 0; i < depth; i++) {
+            currBound = currBound.getFace(depthJoint);
+            nextBound = nextBound.getFace(depthJoint);
+        }
+
+        const start = this.#march(currBound, 1);
+        const finish = this.#march(
+            nextBound,
+            (nextBoundIndex + 1) % 4
+        );
+
+        const updatedPieceData = start.map((e, i) =>
+            finish[i].generateNextData(e, this.id)
+        );
+
+        finish.forEach((e, i) => {
             const nextData = updatedPieceData[i];
-            
             e.faceData = nextData;
-        })
+        });
     }
 
     fill() {
@@ -106,6 +123,31 @@ export default class RubixFace {
         );
 
         return cycle;
+    }
+
+    #march(piece, startingFaceIndex) {
+        const path = [piece];
+        const s = new Set([piece.id]);
+
+        const jointPath = this.#jointPath;
+        const len = this.length * this.length;
+
+        while (path.length !== len) {
+            const nextPiece = path.at(-1).faceData[jointPath[startingFaceIndex]];
+            if (nextPiece === undefined) break;
+            else if (s.has(nextPiece.id) || typeof nextPiece === "number") {
+                startingFaceIndex = (startingFaceIndex + 1) % 4;
+                continue;
+            }
+
+            path.push(nextPiece);
+            s.add(nextPiece.id);
+
+            if (nextPiece.type === "CORNER") {
+                startingFaceIndex = (startingFaceIndex + 1) % 4;
+            }
+        }
+        return path;
     }
 
     #buildCornerRing() {
@@ -163,16 +205,12 @@ export default class RubixFace {
         }
     }
 
-    #nextCornerPieces(direction, count) {
-        return direction === this.#cornerOrientation
-            ? this.corners.map((_, i) => this.corners[(i + count) % 4])
-            : this.corners.map((_, i) => this.corners[(i - count + 4) % 4]);
+    #nextCornerPiece(direction, count) {
+        return;
     }
 
     get #jointPath() {
-        return this.id < 3
-            ? [...RubixFace.FACE_ADJACENCY[this.id]]
-            : RubixFace.FACE_ADJACENCY[5 - this.id].toReversed();
+        return [...RubixFace.FACE_ADJACENCY[this.id]];
     }
 
     get #cornerOrientation() {

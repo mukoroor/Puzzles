@@ -16,22 +16,26 @@ export default class RubixPuzzleDrawer extends Drawer {
         2: [1, 0, 0],
     })
 
-    puzzle = new RubixPuzzle(2);
+    puzzle = new RubixPuzzle(5);
     
     constructor() {
         super();
-        this.puzzle.faces[0].rotate('cw', 1);
-        this.puzzle.faces[1].rotate('cw', 1);
         this.setUpCursorListener();
         this.setUpKeyListener('ArrowUp', () => this.#incrementPuzzleSize(1));
         this.setUpKeyListener('ArrowDown', () => this.#incrementPuzzleSize(-1));
+        console.log(this.puzzle)
     }
-
+    
     async draw() {
-        const positions = this.#calculatePieceCoordinates();
+        let positions = this.#calculatePieceCoordinates();
         await this.setUpBuffers(positions);
-        
         const frame = async() => {
+            if (this.hardUpdate) {
+                positions = this.#calculatePieceCoordinates();
+                await this.setUpBuffers(positions);
+                this.hardUpdate = false;
+                this.updateRender = true;
+            }
             if (this.updateRender) {
                 this.updateRender = false;
                 this.render(this.createRenderPipeline(), positions.length)
@@ -43,7 +47,6 @@ export default class RubixPuzzleDrawer extends Drawer {
 
     async setUpBuffers(piecePositions) {
         if (!this.gpuData.DEVICE) await this.init("webgpu");
-        console.log(piecePositions)
 
         // const VERTICES = new Float32Array(ROUNDED_SQUARE_VERTICES.flat())
         // const INDICES = new Uint32Array(ROUNDED_SQUARE_INDICES.flat())
@@ -197,7 +200,6 @@ export default class RubixPuzzleDrawer extends Drawer {
             }
             pieceMap[currPiece.id].push(coloredFaces)
         }
-        console.log(pieceMap)
         return Object.values(pieceMap);
     }
 
@@ -215,8 +217,8 @@ export default class RubixPuzzleDrawer extends Drawer {
 
     #incrementPuzzleSize(delta) {
         const newLength = this.puzzle.length + delta;
-        if (newLength < 1 || newLength > 10) return;
+        if (newLength < 1 || newLength > 25) return;
         this.puzzle = new RubixPuzzle(newLength);
-        this.updateRender = true;
+        this.hardUpdate = true;
     }
 }

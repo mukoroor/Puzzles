@@ -199,7 +199,7 @@ export default class RubixPuzzleDrawer extends Drawer {
         passEncoder.setVertexBuffer(3, this.getBuffer("piece_colors"));
         // passEncoder.setIndexBuffer(this.getBuffer("index_buffer"), "uint32");
         // passEncoder.drawIndexed(INDICES.length, 8);
-        passEncoder.draw(TRIANGLES.length / 3, this.puzzle.pieceCount);
+        passEncoder.draw(this.getBuffer("triangles_buffer").size / (3 * Float32Array.BYTES_PER_ELEMENT), this.puzzle.pieceCount);
         passEncoder.end();
         this.gpuData.DEVICE.queue.submit([commandEncoder.finish()]);
     }

@@ -1,30 +1,30 @@
-import RubixFace from "./RubixFace.js";
-import RubixPiece from "./RubixPiece.js";
+import RubixFace from './RubixFace.js';
+import RubixPiece from './RubixPiece.js';
 
 export default class RubixPuzzle {
     static cornerCycles = [
-        "031",
-        "012",
-        "024",
-        "043",
-        "534",
-        "542",
-        "521",
-        "513",
+        '031',
+        '012',
+        '024',
+        '043',
+        '534',
+        '542',
+        '521',
+        '513',
     ];
     static edgeCycles = [
-        "10",
-        "03",
-        "31",
-        "20",
-        "12",
-        "04",
-        "24",
-        "43",
-        "45",
-        "35",
-        "52",
-        "51",
+        '10',
+        '03',
+        '31',
+        '20',
+        '12',
+        '04',
+        '24',
+        '43',
+        '45',
+        '35',
+        '52',
+        '51',
     ];
 
     length;
@@ -56,8 +56,8 @@ export default class RubixPuzzle {
     buildCorners() {
         const corners = [];
         for (const cycle of RubixPuzzle.cornerCycles) {
-            const corner = new RubixPiece(cycle, cycle, "CORNER");
-            cycle.split("").forEach((faceId) => {
+            const corner = new RubixPiece(cycle, cycle, 'CORNER');
+            cycle.split('').forEach((faceId) => {
                 this.faces[faceId].addCorner(corner);
             });
             corners.push(corner);
@@ -69,8 +69,8 @@ export default class RubixPuzzle {
         let edgeCycleIndex = 0;
         for (let i = 0; i < RubixPuzzle.cornerCycles.length; i++) {
             for (let k = i + 1; k < RubixPuzzle.cornerCycles.length; k++) {
-                const setCornerI = new Set(RubixPuzzle.cornerCycles[i].split(""));
-                const setCornerK = new Set(RubixPuzzle.cornerCycles[k].split(""));
+                const setCornerI = new Set(RubixPuzzle.cornerCycles[i].split(''));
+                const setCornerK = new Set(RubixPuzzle.cornerCycles[k].split(''));
 
                 const inBoth = [],
                     singular = [];
@@ -92,7 +92,7 @@ export default class RubixPuzzle {
                     const edgePiece = new RubixPiece(
                         cycle_color_Str,
                         cycle_color_Str,
-                        "EDGE"
+                        'EDGE'
                     );
                     adjacentArray.push(edgePiece);
                     inBoth.forEach((faceId) => this.faces[faceId].addEdge(edgePiece));
@@ -133,9 +133,9 @@ export default class RubixPuzzle {
             count = Math.floor(Math.random() * 3);
             this.rotate(face, count, direction, depth);
         }
-        if (withLog) console.log("%cThese are the moves to fix the cube", "font-weight: bold; color: orange; font-size: 1.25em;");
-        if (withLog) console.table([["Face", "RotCount", "Depth", "Depth"]].concat(this.moves.toReversed().map(e => {
-            if (e[2] === 'cw') e[2] = "ccw"
+        if (withLog) console.log('%cThese are the moves to fix the cube', 'font-weight: bold; color: orange; font-size: 1.25em;');
+        if (withLog) console.table([['Face', 'RotCount', 'Depth', 'Depth']].concat(this.moves.toReversed().map(e => {
+            if (e[2] === 'cw') e[2] = 'ccw'
             else e[2] = 'cw'
             return e;
         })));
@@ -162,13 +162,13 @@ export default class RubixPuzzle {
     }
 
     toString() {
-        return this.faces.map((face) => face.toString()).join("\n");
+        return this.faces.map((face) => face.toString()).join('\n');
     }
 }
 
 const SCRAMBLE_MOVES = 100;
 
-//console.time("testInit")
+//console.time('testInit')
 //const testRubix = new RubixPuzzle(1000);
-//console.timeEnd("testInit")
+//console.timeEnd('testInit')
 //testRubix.scramble(SCRAMBLE_MOVES, false)

@@ -5,7 +5,7 @@ export default class RubixPiece {
     type;
     faceData = Array(6);
 
-    constructor(activationString = "012345", colorIndices = "012345", type = "CENTER") {
+    constructor(activationString = '012345', colorIndices = '012345', type = 'CENTER') {
         this.type = type;
         this.id = counter++;
         let curr = {};
@@ -49,7 +49,7 @@ export default class RubixPiece {
     }
 
     toString() {
-        return `\n${this.id} * ${this.type} , ${this.faceData.map(e =>  e.type !== undefined ? `${e.id}_${e.type}`: e).join(" , ")}`
+        return `\n${this.id} * ${this.type} , ${this.faceData.map(e =>  e.type !== undefined ? `${e.id}_${e.type}`: e).join(' , ')}`
     }
 
     static join(pieceA, pieceB, faceA, faceB) {

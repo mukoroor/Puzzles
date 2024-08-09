@@ -1,4 +1,4 @@
-import RubixPuzzleDrawer from "./RubixPuzzleDrawer.js";
+import RubixPuzzleDrawer from './RubixPuzzleDrawer.js';
 
 const d = new RubixPuzzleDrawer();
-document.addEventListener("DOMContentLoaded", () => d.draw())
+document.addEventListener('DOMContentLoaded', () => d.draw())

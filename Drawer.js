@@ -2,19 +2,21 @@ export default class Drawer {
     canvas = document.querySelector('canvas') || document.createElement('canvas');
     context;
     cursor = {x: -1, y: -1, z: -1};
-    updateRender = true;
-    hardUpdate = true;
+    updateFlag = -1;
+    // updateRender = true;
+    // hardUpdate = true;
     gpuData = {
         ratio: 1,
         DEVICE: null,
         buffers: {},
         shaders: {},
+        pipelines: {},
         renderPassDescriptor: {
             colorAttachments: [
               {
                 clearValue: { r: 1.0, g: 1.0, b: 1.0, a: 1.0 },
-                loadOp: "clear",
-                storeOp: "store",
+                loadOp: 'clear',
+                storeOp: 'store',
                 view: null,
               },
             ],
@@ -39,10 +41,10 @@ export default class Drawer {
     }
 
     async #initGPU() {
-        if (!navigator.gpu) throw Error("WebGPU not supported.");
+        if (!navigator.gpu) throw Error('WebGPU not supported.');
 
         const adapter = await navigator.gpu.requestAdapter();
-        if (!adapter) throw Error("Couldn't request WebGPU ADAPTER.");
+        if (!adapter) throw Error(`Couldn't request WebGPU ADAPTER.`);
 
         const device = await adapter.requestDevice();
         this.gpuData.DEVICE = device;
@@ -50,9 +52,17 @@ export default class Drawer {
         this.context.configure({
             device: device,
             format: navigator.gpu.getPreferredCanvasFormat(),
-            alphaMode: "premultiplied",
+            alphaMode: 'premultiplied',
             usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
         });
+    }
+    
+    setRenderPipeline(name, pipeline) {
+        this.gpuData.pipelines[name] = pipeline;
+    }
+
+    getRenderPipeline(name) {
+        return this.gpuData.pipelines[name];
     }
 
     createShader(name, code) {
@@ -101,22 +111,22 @@ export default class Drawer {
             this.gpuData.ratio = xLen / yLen;
         }
         const wrappedResize = () => {
-            document.removeEventListener("DOMContentLoaded", wrappedResize)
+            document.removeEventListener('DOMContentLoaded', wrappedResize)
             work();
         }
-        window.addEventListener("resize", work)
-        document.addEventListener("DOMContentLoaded", wrappedResize);
+        window.addEventListener('resize', work)
+        document.addEventListener('DOMContentLoaded', wrappedResize);
     }
 
     setUpCursorListener() {
-        this.canvas.addEventListener("mousemove", (e) => {
+        this.canvas.addEventListener('mousemove', (e) => {
             if (e.offsetX <= this.canvas.offsetWidth && e.offsetX >= 0) {
                 this.cursor.y = e.offsetX / this.canvas.offsetWidth;
-                this.updateRender = true;
+                this.updateFlag = Number.MAX_SAFE_INTEGER;
             }
             if (e.offsetY <= this.canvas.offsetHeight && e.offsetY >= 0) {
                 this.cursor.x = e.offsetY / this.canvas.offsetHeight;
-                this.updateRender = true;
+                this.updateFlag = Number.MAX_SAFE_INTEGER;
             }
         })
     }

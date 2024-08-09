@@ -1,4 +1,4 @@
-import RubixPiece from "./RubixPiece.js";
+import RubixPiece from './RubixPiece.js';
 
 export default class RubixFace {
     static FACE_ADJACENCY = Object.freeze({
@@ -94,7 +94,7 @@ export default class RubixFace {
 
     #buildRing(length) {
         if (length === 1) {
-            this.center = new RubixPiece(`${this.id}`, `${this.id}`, "CENTER");
+            this.center = new RubixPiece(`${this.id}`, `${this.id}`, 'CENTER');
             return [this.center];
         }
 
@@ -106,7 +106,7 @@ export default class RubixFace {
             let jointStart = faceJoints[i],
                 jointEnd = 5 - jointStart;
             for (let j = 0; j < maxChain; j++) {
-                let piece = new RubixPiece(`${this.id}`, `${this.id}`, "INTERIOR"),
+                let piece = new RubixPiece(`${this.id}`, `${this.id}`, 'INTERIOR'),
                     prevPiece =
                         cycle[(cycle.length + maxChain * i + j - 1) % cycle.length];
                 if (i || j) {
@@ -137,7 +137,7 @@ export default class RubixFace {
         while (path.length !== len) {
             const nextPiece = path.at(-1).faceData[jointPath[startingFaceIndex]];
             if (nextPiece === undefined) break;
-            else if (s.has(nextPiece.id) || typeof nextPiece === "number") {
+            else if (s.has(nextPiece.id) || typeof nextPiece === 'number') {
                 startingFaceIndex = (startingFaceIndex + 1) % 4;
                 continue;
             }
@@ -145,7 +145,7 @@ export default class RubixFace {
             path.push(nextPiece);
             s.add(nextPiece.id);
 
-            if (nextPiece.type === "CORNER") {
+            if (nextPiece.type === 'CORNER') {
                 startingFaceIndex = (startingFaceIndex + 1) % 4;
             }
         }
@@ -157,7 +157,7 @@ export default class RubixFace {
         const targetCornerActivations = [this.id, joints[0], joints[1]];
         let target = this.corners.find((corner) =>
             targetCornerActivations.every(
-                (activation) => typeof corner.getFace(activation) === "number"
+                (activation) => typeof corner.getFace(activation) === 'number'
             )
         );
 
@@ -216,7 +216,7 @@ export default class RubixFace {
     }
 
     get #cornerOrientation() {
-        return this.id % 3 ? "cw" : "ccw";
+        return this.id % 3 ? 'cw' : 'ccw';
     }
 
     toString() {

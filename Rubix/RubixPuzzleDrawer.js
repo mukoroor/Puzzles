@@ -234,7 +234,6 @@ export default class RubixPuzzleDrawer extends Drawer {
         ],
       },
       fragment: {
-        // constants: { ratio: this.gpuData.ratio },
         module: this.getShader("frag_vert"),
         targets: [{ format: navigator.gpu.getPreferredCanvasFormat() }],
       },

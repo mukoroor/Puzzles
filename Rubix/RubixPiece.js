@@ -53,8 +53,25 @@ export default class RubixPiece {
     this.faceData[index] = value;
   }
 
+  getDeepPiece(face, depth) {
+    if (typeof this.getFace(face) === 'number') return null;
+    let pointer = this;
+    for (let i = 0; i < depth; i++) {
+      pointer = pointer.getFace(face);
+    }
+    return pointer;
+  }
+
   getFace(index) {
     return this.faceData[index];
+  }
+
+  getColoring() {
+    const colors = [];
+    for (const face of this.faceData) {
+      colors.push(face === undefined || face instanceof RubixPiece ? 6 : face);
+    }
+    return colors;
   }
 
   toString() {

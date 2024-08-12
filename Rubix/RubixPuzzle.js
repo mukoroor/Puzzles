@@ -110,8 +110,6 @@ export default class RubixPuzzle {
     return Math.pow(this.length, 3) - Math.pow(Math.max(this.length - 2, 0), 3);
   }
 
-  updateColors(newColors) {}
-
   undo() {}
 
   reset() {}

@@ -1,14 +1,18 @@
 export default class Drawer {
+    static UPDATE_FLAGS = Object.freeze({
+        RESET: Number.MAX_SAFE_INTEGER,
+        CURSOR_UPDATE: Number.MAX_SAFE_INTEGER - 1,
+        IDLE: Number.MIN_SAFE_INTEGER,
+    })
     canvas = document.querySelector('canvas') || document.createElement('canvas');
     context;
     cursor = {x: -1, y: -1, z: -1};
-    updateFlag = -1;
-    // updateRender = true;
-    // hardUpdate = true;
+    updateFlag = Drawer.UPDATE_FLAGS.RESET;
     gpuData = {
         ratio: 1,
         DEVICE: null,
         buffers: {},
+        bindGroups: [],
         shaders: {},
         pipelines: {},
         renderPassDescriptor: {
@@ -47,7 +51,7 @@ export default class Drawer {
         if (!adapter) throw Error(`Couldn't request WebGPU ADAPTER.`);
 
         const device = await adapter.requestDevice();
-        this.gpuData.DEVICE = device;
+        this.device = device;
 
         this.context.configure({
             device: device,
@@ -55,6 +59,10 @@ export default class Drawer {
             alphaMode: 'premultiplied',
             usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
         });
+    }
+
+    addBindGroup(bindGroup) {
+        this.gpuData.bindGroups.push(bindGroup);
     }
     
     setRenderPipeline(name, pipeline) {
@@ -66,7 +74,7 @@ export default class Drawer {
     }
 
     createShader(name, code) {
-        this.setShader(name, this.gpuData.DEVICE.createShaderModule({ code }));
+        this.setShader(name, this.device.createShaderModule({ code }));
     }
 
     getShader(name) {
@@ -78,11 +86,11 @@ export default class Drawer {
     }
 
     createBuffer(name, size, usage) {
-        this.setBuffer(name, this.gpuData.DEVICE.createBuffer({ size, usage }));
+        this.setBuffer(name, this.device.createBuffer({ size, usage }));
     }
 
     writeBuffer(name, bufferOffset, data, dataOffset, dataSize) {
-        this.gpuData.DEVICE.queue.writeBuffer(this.getBuffer(name), bufferOffset, data, dataOffset, dataSize);
+        this.device.queue.writeBuffer(this.getBuffer(name), bufferOffset, data, dataOffset, dataSize);
     }
 
     writeBuffer1to1(name, data) {
@@ -120,22 +128,29 @@ export default class Drawer {
 
     setUpCursorListener() {
         this.canvas.addEventListener('mousemove', (e) => {
+            if (this.updateFlag !== Drawer.UPDATE_FLAGS.IDLE) return;
             if (e.offsetX <= this.canvas.offsetWidth && e.offsetX >= 0) {
                 this.cursor.y = e.offsetX / this.canvas.offsetWidth;
-                this.updateFlag = Number.MAX_SAFE_INTEGER;
+                this.updateFlag = Drawer.UPDATE_FLAGS.CURSOR_UPDATE;
             }
             if (e.offsetY <= this.canvas.offsetHeight && e.offsetY >= 0) {
                 this.cursor.x = e.offsetY / this.canvas.offsetHeight;
-                this.updateFlag = Number.MAX_SAFE_INTEGER;
+                this.updateFlag = Drawer.UPDATE_FLAGS.CURSOR_UPDATE;
             }
         })
     }
 
     setUpKeyListener(keyPredicate, work) {
         document.addEventListener('keydown', (e) => {
-            if (keyPredicate(e.key)) work(e.key);
+            if (keyPredicate(e.key) && this.updateFlag === Drawer.UPDATE_FLAGS.IDLE) work(e.key);
         });
     }
+    
+    set device(newDevice) {
+        this.gpuData.DEVICE = newDevice
+    }
 
-
+    get device() {
+        return this.gpuData.DEVICE;
+    }
 }

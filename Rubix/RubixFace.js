@@ -14,7 +14,7 @@ export default class RubixFace {
   corners = [];
   edges = [];
   interiors = [];
-  center = null;
+  centers = [];
 
   constructor(id, lengthFunc) {
     this.id = id;
@@ -26,7 +26,7 @@ export default class RubixFace {
   }
 
   addCenter(faceCenter) {
-    this.center = faceCenter;
+    this.centers.push(faceCenter);
   }
 
   addCorner(faceCorner) {
@@ -50,16 +50,11 @@ export default class RubixFace {
     const nextBoundIndex =
       (direction === this.#cornerOrientation ? count : 4 - count) % 4;
 
-    let currBound = this.corners[0],
-      nextBound = this.corners[nextBoundIndex];
+    let currBound = this.corners[0].getDeepPiece(depthJoint, depth),
+      nextBound = this.corners[nextBoundIndex].getDeepPiece(depthJoint, depth);
 
-    for (let i = 0; i < depth; i++) {
-      currBound = currBound.getFace(depthJoint);
-      nextBound = nextBound.getFace(depthJoint);
-    }
-
-    const start = this.#march(currBound, 1);
-    const finish = this.#march(nextBound, (nextBoundIndex + 1) % 4);
+    const start = this.march(currBound, 1);
+    const finish = this.march(nextBound, (nextBoundIndex + 1) % 4);
 
     const constFace = depth + 1 === this.length ? depthJoint : this.id;
 
@@ -77,10 +72,17 @@ export default class RubixFace {
     let max = this.length - 2;
 
     let rings = [this.#buildCornerRing()];
+    
+    if (this.length < 3) {
+      rings[0].forEach(e => this.addCenter(e));
+      return;
+    };
 
     for (let i = max; i > 0; i -= 2) {
       let ring = this.#buildRing(i);
-      if (i === 1) this.center = ring;
+      if (i < 3) {
+        ring.forEach(e => this.addCenter(e));
+      };
       rings.unshift(ring);
     }
 
@@ -124,7 +126,7 @@ export default class RubixFace {
     return cycle;
   }
 
-  #march(piece, startingFaceIndex) {
+  march(piece, startingFaceIndex) {
     const path = [piece];
     const s = new Set([piece.id]);
 
@@ -204,16 +206,12 @@ export default class RubixFace {
     }
   }
 
-  #nextCornerPiece(direction, count) {
-    return;
-  }
-
   get #jointPath() {
     return [...RubixFace.FACE_ADJACENCY[this.id]];
   }
 
   get #cornerOrientation() {
-    return this.id % 3 ? "cw" : "ccw";
+    return 8 % this.id == 0 ? 'cw': 'ccw';
   }
 
   toString() {

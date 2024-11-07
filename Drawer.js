@@ -3,6 +3,7 @@ export default class Drawer {
         RESET: Number.MAX_SAFE_INTEGER,
         CURSOR_UPDATE: Number.MAX_SAFE_INTEGER - 1,
         IDLE: Number.MIN_SAFE_INTEGER,
+        FORCE_RENDER: Number.MAX_SAFE_INTEGER - 2
     })
     canvas = document.querySelector('canvas') || document.createElement('canvas');
     context;
@@ -14,6 +15,8 @@ export default class Drawer {
         buffers: {},
         bindGroups: [],
         shaders: {},
+        samplers: {},
+        textures: {},
         pipelines: {},
         renderPassDescriptor: {
             colorAttachments: [
@@ -85,6 +88,21 @@ export default class Drawer {
         this.gpuData.shaders[name] = shader;
     }
 
+    createSampler(name, samplerData = {
+        magFilter: 'linear',
+        minFilter: 'linear',
+    }) {
+        this.setSampler(name, this.device.createSampler(samplerData));
+    }
+
+    getSampler(name) {
+        return this.gpuData.samplers[name];
+    }
+
+    setSampler(name, sampler) {
+        this.gpuData.samplers[name] = sampler;
+    }
+
     createBuffer(name, size, usage) {
         this.setBuffer(name, this.device.createBuffer({ size, usage }));
     }
@@ -103,6 +121,35 @@ export default class Drawer {
 
     setBuffer(name, buffer) {
         this.gpuData.buffers[name] = buffer;
+    }
+
+    async imageToBitmap(imageUrl) {
+        return await createImageBitmap(await (await fetch(imageUrl)).blob());
+    }
+
+    async createTextureFromImage(imageUrl, name = '') {
+        const bitmap = await this.imageToBitmap(imageUrl)
+        this.setTexture(name || imageUrl, this.device.createTexture({
+            size: [bitmap.width, bitmap.height, 1],
+            format: 'rgba8unorm',
+            usage:
+            GPUTextureUsage.TEXTURE_BINDING |
+            GPUTextureUsage.COPY_DST |
+            GPUTextureUsage.RENDER_ATTACHMENT,
+        }));
+        this.device.queue.copyExternalImageToTexture(
+            { source: bitmap },
+            { texture: this.getTexture(name || imageUrl) },
+            [bitmap.width, bitmap.height]
+        );
+    }
+
+    setTexture(name, texture) {
+        this.gpuData.textures[name] = texture;
+    }
+
+    getTexture(name) {
+        return this.gpuData.textures[name]
     }
 
 

@@ -110,14 +110,22 @@ export default class RubixPuzzle {
     return Math.pow(this.length, 3) - Math.pow(Math.max(this.length - 2, 0), 3);
   }
 
-  undo() {}
+  reverseLastMove() {
+    if (this.moves.length == 0) return undefined
+    return this.#reverseMove(this.moves.pop())
+
+  }
+
+  #reverseMove([face, depth, direction, count]) {
+    return [face, depth, `${(direction.length > 2 ? "": "c")}cw`, count, false]
+  }
 
   reset() {}
 
-  rotate(face, count, direction = "cw", depth = 0) {
+  rotate(face, depth = 0, direction = "cw", count = 0,  store=true) {
     if (this.length === 1) return;
-    this.moves.push([face, count, direction, depth]);
-    this.faces[face].rotate(count, direction, depth);
+    if (store) this.moves.push([face, depth, direction, count]);
+    this.faces[face].rotate(depth, direction, count);
   }
 
   scramble(scrambleCount = SCRAMBLE_MOVES, withLog = true) {
@@ -126,37 +134,30 @@ export default class RubixPuzzle {
     let face, depth, count, direction;
     for (let i = 0; i < scrambleCount; i++) {
       face = Math.floor(Math.random() * 6);
-      direction = Math.random() > 0.5 ? "cw" : "ccw";
       depth = Math.floor(Math.random() * (this.length - 1));
-      count = Math.floor(Math.random() * 3);
-      this.rotate(face, count, direction, depth);
+      direction = Math.random() > 0.5 ? "cw" : "ccw";
+      count = Math.floor(Math.random() * 3) + 1;
+      this.rotate(face, depth, direction, count);
     }
-    if (withLog)
+    if (withLog) {
       console.log(
         "%cThese are the moves to fix the cube",
         "font-weight: bold; color: orange; font-size: 1.25em;"
       );
-    if (withLog)
       console.table(
-        [["Face", "RotCount", "Depth", "Depth"]].concat(
-          this.moves.toReversed().map((e) => {
-            if (e[2] === "cw") e[2] = "ccw";
-            else e[2] = "cw";
-            return e;
-          })
+        [["Face", "Depth", "Direction", "Count"]].concat(
+          this.moves.toReversed().map(e => this.#reverseMove(e))
         )
       );
+    }
     console.timeEnd("scramble");
   }
 
   crossPattern() {
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
       for (let j = 0; j < this.length; j += 2) {
-        if (j + 1 === this.length) {
-          this.faces[5 - i].rotate(2);
-        } else {
-          this.faces[i].rotate(2, "cw", j);
-        }
+          this.moves.push([i, j, "cw", 2]);
+          this.faces[i].rotate(j, "cw", 2);
       }
     }
   }

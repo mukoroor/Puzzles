@@ -41,7 +41,7 @@ export default class RubixFace {
     this.interiors.push(faceInterior);
   }
 
-  rotate(count, direction = this.#cornerOrientation, depth = 2) {
+  rotate(depth = 0, direction = this.#cornerOrientation, count = 0) {
     count = count % 4;
 
     if (!count || depth > this.length - 1) return;

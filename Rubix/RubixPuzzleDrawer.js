@@ -4,6 +4,7 @@ import RubixPuzzle from "./RubixPuzzle.js";
 import { frag_vert_shader } from "./RubixShader.js";
 import { frag_vert_aid_shader } from "./AidShader.js";
 import { AID_MESH } from "./Meshes.js";
+import RubixMoveEvaluator from "./RubixMoveEvaluator.js";
 
 export default class RubixPuzzleDrawer extends Drawer {
   static UPDATE_FLAGS = Object.freeze({
@@ -28,7 +29,7 @@ export default class RubixPuzzleDrawer extends Drawer {
   rotationAngle = 0;
   rotationSpeed = 10;
   showFaceAid = true;
-  puzzle = new RubixPuzzle(3);
+  puzzle = new RubixPuzzle(2);
 
   constructor() {
     super();
@@ -110,6 +111,12 @@ export default class RubixPuzzleDrawer extends Drawer {
         this.updateFlag = Drawer.UPDATE_FLAGS.FORCE_RENDER;
       }
     );
+    this.setUpKeyListener(
+      (type) => type === "o",
+      () => {
+        this.#undo()
+      }
+    );
   }
 
   async init() {
@@ -161,8 +168,8 @@ export default class RubixPuzzleDrawer extends Drawer {
           this.#updateColorsBuffer();
 
           this.gpuData.bindGroups = [];
-          this.setRenderPipeline("main", this.#createMainRenderPipeline());
-          this.setRenderPipeline("aid", this.#createFaceAidRenderPipeline());
+          this.setPipeline("main", this.#createMainRenderPipeline());
+          this.setPipeline("aid", this.#createFaceAidRenderPipeline());
 
           data = this.#getPiecesVisitSequenceAndPositions();
           this.#updatePiecePositionsBuffer(data.positions);
@@ -182,7 +189,6 @@ export default class RubixPuzzleDrawer extends Drawer {
           this.render();
           break;
         case RubixPuzzleDrawer.UPDATE_FLAGS.INTERPOLATION:
-          console.log(this.movementData);
           if (rotationData.length == 0) {
             rotationData = [
               this.#getPiecesIsRotating(data.sequence),
@@ -559,7 +565,7 @@ export default class RubixPuzzleDrawer extends Drawer {
 
     const color = {
       operation: 'add',
-      srcFactor: 'dst-alpha',
+      srcFactor: 'one',
       dstFactor: 'one-minus-src-alpha',
     }
     const alpha = {
@@ -625,7 +631,7 @@ export default class RubixPuzzleDrawer extends Drawer {
       this.gpuData.renderPassDescriptor
     );
 
-    passEncoder.setPipeline(this.getRenderPipeline("main"));
+    passEncoder.setPipeline(this.getPipeline("main"));
     passEncoder.setVertexBuffer(0, this.getBuffer("triangles_buffer"));
     passEncoder.setVertexBuffer(1, this.getBuffer("triangle_enum"));
     this.gpuData.bindGroups
@@ -638,7 +644,7 @@ export default class RubixPuzzleDrawer extends Drawer {
     );
 
     if (this.showFaceAid) {
-      passEncoder.setPipeline(this.getRenderPipeline("aid"));
+      passEncoder.setPipeline(this.getPipeline("aid"));
       passEncoder.setVertexBuffer(0, this.getBuffer("aid_mesh_buffer"));
       passEncoder.setBindGroup(0, this.gpuData.bindGroups[2]);
       passEncoder.draw(
@@ -651,6 +657,7 @@ export default class RubixPuzzleDrawer extends Drawer {
   }
 
   #getAvgBounds(sequence) {
+    // doe sit need to be this complex??
     const [face, depth] = this.movementData;
     const boundIndices = [];
     const set = new Set(
@@ -710,7 +717,7 @@ export default class RubixPuzzleDrawer extends Drawer {
       sequence.push(currPiece);
 
       if (!pieceMap.has(currPiece.id)) {
-        const index = positions.push([0, 0, 0, 1]) - 1;
+        const index = positions.push([0, 0, 0, 0]) - 1;
         pieceMap.set(currPiece.id, index);
       }
 
@@ -735,7 +742,7 @@ export default class RubixPuzzleDrawer extends Drawer {
   }
 
   #calculateScale() {
-    return 0.8 / this.puzzle.length;
+    return 1 / this.puzzle.length;
   }
 
   #calculatePuzzleCenter() {
@@ -744,7 +751,7 @@ export default class RubixPuzzleDrawer extends Drawer {
 
   #incrementPuzzleSize(delta) {
     const newLength = this.puzzle.length + delta;
-    if (newLength < 1 || newLength > 50) return;
+    if (newLength < 1 || newLength > 100) return;
     this.puzzle = new RubixPuzzle(newLength);
     this.updateFlag = Drawer.UPDATE_FLAGS.RESET;
     console.log(
@@ -774,6 +781,13 @@ export default class RubixPuzzleDrawer extends Drawer {
     this.updateFlag = RubixPuzzleDrawer.UPDATE_FLAGS.INTERPOLATION;
   }
 
+  #undo() {
+    const move = this.puzzle.reverseLastMove();
+    if (!move) return;
+    this.movementData = move;
+    this.#startInterpolation();
+  }
+
   #unscramble() {
     const interval = setInterval(() => {
       if (this.updateFlag != Drawer.UPDATE_FLAGS.IDLE) return;
@@ -787,3 +801,29 @@ export default class RubixPuzzleDrawer extends Drawer {
     }, 300);
   }
 }
+
+console.log('a')
+const testRubix = new RubixPuzzle(3);
+// testRubix.scramble(10, false)
+
+testRubix.rotate(2, 0, 'ccw', 1);
+testRubix.faces.forEach((e, i) => {
+  const twoD = e.to2DArray().map(x => x.map(c => c.faceData[e.id]));
+  console.log(twoD, 'index', i)
+})
+const evaluator = new RubixMoveEvaluator(testRubix);
+document.addEventListener("DOMContentLoaded", () => {
+  evaluator.init().then(() => {
+    console.time('gpcmp_score')
+    evaluator.evaluate().then(console.log)
+    
+    testRubix.rotate(2, 0, 'ccw', 1);
+    testRubix.faces.forEach((e, i) => {
+      const twoD = e.to2DArray().map(x => x.map(c => c.faceData[e.id]));
+      console.log(twoD, 'index', i)
+    })
+    console.time('cpcmp_score')
+    console.log(testRubix.scores())
+    console.timeEnd('cpcmp_score')
+  })
+});

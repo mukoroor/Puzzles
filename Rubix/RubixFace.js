@@ -15,6 +15,8 @@ export default class RubixFace {
   edges = [];
   interiors = [];
   centers = [];
+  #memoize = {
+  }
 
   constructor(id, lengthFunc) {
     this.id = id;
@@ -126,7 +128,7 @@ export default class RubixFace {
     return cycle;
   }
 
-  march(piece, startingFaceIndex) {
+  march(piece, startingFaceIndex = RubixFace.FACE_ADJACENCY[this.id][0]) {
     const path = [piece];
     const s = new Set([piece.id]);
 
@@ -221,5 +223,125 @@ export default class RubixFace {
                 INTERIORS: ${this.interiors.map((interior) =>
                   interior.toString()
                 )}\n\n`;
+  }
+
+  score() {
+    console.time('reg')
+    const m = {}
+    const f = p => {
+      let key = p.faceData[this.id];
+      if (m[key]) m[key]++;
+      else m[key] = 1;
+    }
+    this.corners.forEach(f);
+    this.edges.forEach(f);
+    this.interiors.forEach(f);
+    this.centers.forEach(f);
+
+    let sum = 0;
+    let pieceCount = this.length * this.length;
+    for (const val of Object.values(m)) {
+      sum += Math.pow(val / pieceCount , 2)
+    }
+    console.timeEnd('reg')
+    console.log(Object.values(m), 'reg score');
+    return sum;
+  }
+
+  scoreDFS() {
+    console.time('dfs')
+    const visited = new Set();
+
+    const types = {}
+
+    let q = [this.corners[0]]
+    while (q.length != 0) {
+      let curr = q.shift()
+      let key = curr.faceData[this.id];
+      if (visited.has(curr.id)) {
+        types[key]++;
+        continue;
+      }
+      visited.add(curr.id);
+      if (types[key] != undefined) types[key]++;
+      else types[key] = 1;
+
+      for (const v of RubixFace.FACE_ADJACENCY[this.id]) {
+        if (typeof curr.faceData[v] != 'number' && !visited.has(curr.faceData[v].id)) {
+          if (curr.faceData[v].faceData[this.id] == key) {
+            types[key]--;
+          }
+          q.unshift(curr.faceData[v]);
+        }
+      }
+    }
+    
+    let tot = Object.values(types).reduce((a, c) => a + c), sum = 0;
+    for (const val of Object.values(types)) {
+      sum += Math.pow(val / tot , 2)
+    }
+    console.timeEnd('dfs')
+    console.log(Object.values(types), 'dfs score');
+    return sum;
+  }
+
+  to2DArray() {
+    if (this.#memoize.twoD) return this.#memoize.twoD;
+    if (this.length == 1) return [[this.centers[0]]];
+
+    const arr = Array.from({length: this.length}, () => Array(this.length));
+
+    let currRow = this.corners[this.id == 3 ? 1: 0];
+
+    let rowJoint = currRow.activations[this.id].next.face, colJoint = currRow.activations[rowJoint].next.face;
+    rowJoint = 5 - rowJoint;
+    colJoint = 5 - colJoint;
+    for (let i = 0; i < arr.length; i++) {
+      let currEl  = currRow;
+      for (let j = 0; j < arr.length; j++) {
+        arr[i][j] = currEl;
+        currEl = currEl.faceData[colJoint];
+      }
+      currRow = currRow.faceData[rowJoint];
+    }
+    this.#memoize.twoD = arr;
+    return arr;
+  }
+
+  scoreDP(arr) {
+    // console.time('dp')
+    const scoring = Array(6).fill(0);
+    const twoD = arr || this.to2DArray().map(e => e.map(c => c.faceData[this.id]));
+
+    let count = 0, ids = 1;
+    let idCache = Array(twoD.length).fill(0);
+    let idCurr = Array(twoD.length).fill(0);
+
+    for (let i = 0; i < twoD.length; i++) {
+      for (let j = 0; j < twoD.length; j++) {
+        const val = twoD[i][j];
+        if ((i != 0 && twoD[i - 1][j] == val) && (j != 0 && twoD[i][j - 1] == val) && idCache[j] != idCurr[j - 1]) {
+          idCurr[j] = idCurr[j - 1];
+          scoring[val]--;
+          count--;
+        } else if (i != 0 && twoD[i - 1][j] == val) {
+          idCurr[j] = idCache[j];
+        } else if (j != 0 && twoD[i][j - 1] == val) {
+          idCurr[j] = idCurr[j - 1];
+        } else {
+          idCurr[j] = ids++;
+          scoring[val]++;
+          count++;
+        }
+      }
+      idCache = idCurr;
+    }
+    let tot = scoring.reduce((a, c) => a + c), sum = 0;
+    for (const val of scoring) {
+      sum += Math.pow(val / tot , 2)
+    }
+    // console.timeEnd('dp')
+    // console.log(scoring, tot, 'dp score')
+    return sum;
   }
 }

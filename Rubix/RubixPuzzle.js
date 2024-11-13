@@ -46,7 +46,6 @@ export default class RubixPuzzle {
 
     this.buildEdges(this.buildCorners());
     this.buildFaces();
-    // this.scramble();
   }
 
   buildFaces() {
@@ -132,11 +131,13 @@ export default class RubixPuzzle {
     if (this.length === 1) return;
     console.time("scramble");
     let face, depth, count, direction;
+    const scores = []
     for (let i = 0; i < scrambleCount; i++) {
       face = Math.floor(Math.random() * 6);
       depth = Math.floor(Math.random() * (this.length - 1));
       direction = Math.random() > 0.5 ? "cw" : "ccw";
       count = Math.floor(Math.random() * 3) + 1;
+      // scores.push(this.scores());
       this.rotate(face, depth, direction, count);
     }
     if (withLog) {
@@ -149,8 +150,10 @@ export default class RubixPuzzle {
           this.moves.toReversed().map(e => this.#reverseMove(e))
         )
       );
+      // console.log(scores);
     }
     console.timeEnd("scramble");
+
   }
 
   crossPattern() {
@@ -172,11 +175,34 @@ export default class RubixPuzzle {
   toString() {
     return this.faces.map((face) => face.toString()).join("\n");
   }
+
+  scores() {
+    return this.faces.map(e => e.scoreDP());
+    // return this.faces.map(e => [e.score(), e.scoreDFS(), e.scoreDP()]);
+  }
 }
 
-const SCRAMBLE_MOVES = 100;
+const SCRAMBLE_MOVES = 20;
 
-//console.time('testInit')
-//const testRubix = new RubixPuzzle(1000);
-//console.timeEnd('testInit')
-//testRubix.scramble(SCRAMBLE_MOVES, false)
+// console.time('testInit')
+// const testRubix = new RubixPuzzle(5);
+// // testRubix.scramble(SCRAMBLE_MOVES, false)
+// // console.log(testRubix.scores())
+// // testRubix.faces.forEach((e, i) => {
+// //   const twoD = e.to2DArray().map(x => x.map(c => c.faceData[e.id]));
+// //   console.log(i)
+// //   console.table(twoD)
+// // })
+
+// const g = [
+//   [1, 1, 1, 2, 0],
+//   [1, 0, 1, 2, 2],
+//   [1, 1, 1, 1, 1],
+//   [4, 4, 3, 2, 1],
+//   [4, 4, 5, 5, 1]
+// ]
+
+// testRubix.faces[0].scoreDP(g);
+
+
+// console.timeEnd('testInit')

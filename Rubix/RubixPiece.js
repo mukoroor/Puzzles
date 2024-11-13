@@ -80,6 +80,10 @@ export default class RubixPiece {
       .join(" , ")}`;
   }
 
+  toStringSimple() {
+    return `{${this.id}}${this.type}`
+  }
+
   static join(pieceA, pieceB, faceA, faceB) {
     pieceA.setFace(faceA, pieceB);
     pieceB.setFace(faceB, pieceA);

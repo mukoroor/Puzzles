@@ -36,27 +36,24 @@ export default class RubixMoveEvaluator extends GPUConnector {
   }
   
 
-    #createBindBuffers(permutationCount = 1) {
-        const colorCount = Math.pow(this.puzzle.length, 2) * 6;
+    #createBindBuffers() {
         this.createBuffer(
             "face_colorings",
-            permutationCount * Uint32Array.BYTES_PER_ELEMENT * colorCount,
+            Math.ceil(3 * this.puzzle.pieceFaceCount / (8 * Uint32Array.BYTES_PER_ELEMENT)) * Uint32Array.BYTES_PER_ELEMENT,
             GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
         );
-        this.#createOutputBuffers(this.getBuffer("face_colorings").size);
+        this.#createOutputBuffers(1);
     }
       
-    #createOutputBuffers(faceColoringsSize) {
-      const colorCount = Math.pow(this.puzzle.length, 2) * 6;
-      console.log(this.moves.length * faceColoringsSize)
+    #createOutputBuffers(faceColoringsInstanceCount) {
       this.createBuffer(
         "cube_colorings_output",
-        this.moves.length * faceColoringsSize,
+        faceColoringsInstanceCount * Math.ceil(this.moves.length * 3 * this.puzzle.pieceFaceCount / (8 * Uint32Array.BYTES_PER_ELEMENT)) * Uint32Array.BYTES_PER_ELEMENT,
         GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
       );
       this.createBuffer(
           "score_output",
-          this.moves.length * Float32Array.BYTES_PER_ELEMENT * 6 * faceColoringsSize / (Uint32Array.BYTES_PER_ELEMENT * colorCount),
+          faceColoringsInstanceCount * this.moves.length * Float32Array.BYTES_PER_ELEMENT * 6,
           GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
       );
     }
@@ -68,7 +65,7 @@ export default class RubixMoveEvaluator extends GPUConnector {
     }
 
     #updateFaceColoringsBuffer(colorings) {
-        const COLORINGS = new Uint32Array(colorings.flat(2));
+        const COLORINGS = new Uint32Array(colorings);
         this.writeBuffer1to1("face_colorings", COLORINGS);
     }
 
@@ -144,8 +141,9 @@ export default class RubixMoveEvaluator extends GPUConnector {
       });
     }
 
-    async evaluate(generations = 7) {
-        this.#updateFaceColoringsBuffer(this.puzzle.faces.map(e => e.to2DArray().map(x => x.map(c => c.faceData[e.id]))));
+    async evaluate(generations = 4) {
+        const binaryRep = segmentString(this.puzzle.faces.map(e => e.toBinary()).reverse().join(''), 32).map(e => parseInt(e, 2));
+        this.#updateFaceColoringsBuffer(binaryRep);
 
         
         let currGeneration = 0;
@@ -156,7 +154,8 @@ export default class RubixMoveEvaluator extends GPUConnector {
           const passEncoder = commandEncoder.beginComputePass();
           passEncoder.setPipeline(this.getPipeline('compute_scoring'));
           passEncoder.setBindGroup(0, this.#createBindGroup());
-          passEncoder.dispatchWorkgroups(this.moves.length);
+          // need to figure out how to split dispatches
+          passEncoder.dispatchWorkgroups(Math.pow(7, currGeneration), Math.pow(2, currGeneration), Math.pow(2, currGeneration));
           passEncoder.end();
           
           if (currGeneration != generations) {
@@ -185,9 +184,11 @@ export default class RubixMoveEvaluator extends GPUConnector {
                 return array2D;
               }),
               this.mapBufferToCPU('cube_colorings_output_copy', Uint32Array).then(e => {
+                let s = Array.from(e).map(num => num.toString(2).padStart(32, '0'))
+                let parsed = segmentString(s.reverse().join('')).map(e => parseInt(e, 2));
                 let array2D = [];
-                for (let i = 0; i < e.length / 9; i++) {
-                  array2D.push(Array.from(e.slice(i * 9, (i + 1) * 9))); // Slice each 9-element chunk
+                for (let i = 0; i < parsed.length / 9; i++) {
+                  array2D.push(Array.from(parsed.slice(i * 9, (i + 1) * 9))); // Slice each 9-element chunk
                 }
                 return array2D;
               }),
@@ -201,8 +202,21 @@ export default class RubixMoveEvaluator extends GPUConnector {
 
     #swapColorings() {
       // this.#destroyBuffers();
+      const count = Math.ceil(this.moves.length * 3 * this.puzzle.pieceFaceCount / (8 * Uint32Array.BYTES_PER_ELEMENT)) * Uint32Array.BYTES_PER_ELEMENT
       const nextFaceColorings = this.getBuffer("cube_colorings_output");
-      this.#createOutputBuffers(nextFaceColorings.size);
+      this.#createOutputBuffers(this.moves.length * nextFaceColorings.size / count);
       this.setBuffer('face_colorings', nextFaceColorings);
     }
+}
+
+//util will remove
+function segmentString(str, len=3){
+
+  var chunks = [];
+
+  for (var i = str.length; i >0; i -= len) {
+      chunks.push(str.substring(i-len, i));
+  }
+  
+  return chunks
 }

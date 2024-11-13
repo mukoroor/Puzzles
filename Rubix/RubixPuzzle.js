@@ -109,6 +109,10 @@ export default class RubixPuzzle {
     return Math.pow(this.length, 3) - Math.pow(Math.max(this.length - 2, 0), 3);
   }
 
+  get pieceFaceCount() {
+    return Math.pow(this.length, 2) * 6
+  }
+
   reverseLastMove() {
     if (this.moves.length == 0) return undefined
     return this.#reverseMove(this.moves.pop())

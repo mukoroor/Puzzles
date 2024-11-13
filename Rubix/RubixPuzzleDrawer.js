@@ -806,7 +806,7 @@ console.log('a')
 const testRubix = new RubixPuzzle(3);
 // testRubix.scramble(10, false)
 
-testRubix.rotate(2, 0, 'ccw', 1);
+// testRubix.rotate(2, 0, 'ccw', 1);
 testRubix.faces.forEach((e, i) => {
   const twoD = e.to2DArray().map(x => x.map(c => c.faceData[e.id]));
   console.log(twoD, 'index', i)

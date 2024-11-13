@@ -4,18 +4,15 @@ export const move_eval_shader = (cubeDim, moves) => {
     const movesString = movesToString(moves);
     // console.log(movesString)
     return /*wgsl*/ `
-    const adj = array(
+    const adj = array<array<u32, 4>, 3>(
         array(1, 2, 4, 3),
         array(0, 3, 5, 2),
         array(0, 1, 5, 4),
     );
 
     const dimension = ${cubeDim};
+    const dim_sq = dimension * dimension;
     const moves: array<CubeMove, ${movesCount}>  = array(${movesString});
-
-    
-    alias Face = array<array<u32, dimension>, dimension>;
-    alias Cube = array<Face, 6>;
 
     struct CubeMove {
         face: u32,
@@ -24,29 +21,32 @@ export const move_eval_shader = (cubeDim, moves) => {
     }
 
     @group(0) @binding(0)
-    var<storage, read_write> cubes: array<Cube>;
+    var<storage, read_write> cubesU32: array<u32>;
     @group(0) @binding(1)
-    var<storage, read_write> output: array<array<f32, 6>, ${movesCount}>;
+    var<storage, read_write> output: array<array<f32, 6>>;
     @group(0) @binding(2)
-    var<storage, read_write> cubesOut: array<Cube>;
+    var<storage, read_write> cubesOut: array<u32>;
 
 
     @compute @workgroup_size(1)
-    // @compute @workgroup_size(${cubeDim}, 3, 3)
-    fn main(@builtin(global_invocation_id) global_id : vec3u, @builtin(local_invocation_id) local_id : vec3u) {
-        let index: u32 = global_id.x;
-        if (index >= ${movesCount}) {
+    fn main(@builtin(workgroup_id) workgroup_id : vec3<u32>, @builtin(global_invocation_id) global_id : vec3u, @builtin(local_invocation_id) local_id : vec3u, @builtin(num_workgroups) num_workgroups: vec3<u32>) {
+
+        let index =  
+            workgroup_id.x +
+            workgroup_id.y * num_workgroups.x +
+            workgroup_id.z * num_workgroups.x * num_workgroups.y;
+        if (index >= arrayLength(&output)) {
             return;
         }
 
-        rotateCube(index, &(cubes[0]), &(cubesOut[index]));
+        rotateCube(index % ${movesCount}, 0, index);
         for (var i: u32  = 0; i < 6; i++) {
-            output[index][i] = scoreDP(&(cubesOut[index][i]));
+            output[index][i] = scoreDP(index, i);
         }
     }
 
 
-    fn scoreDP(arrP: ptr<storage, Face, read_write>) -> f32 {
+    fn scoreDP(cubeInd: u32, faceInd: u32) -> f32 {
         var len = 6;
         var idCache = array<i32, dimension>();
         var idCurr = array<i32, dimension>();
@@ -56,14 +56,16 @@ export const move_eval_shader = (cubeDim, moves) => {
 
         for (var i: u32 = 0; i < dimension; i++) {
             for (var j: u32 = 0; j < dimension; j++) {
-                var val = (*arrP)[i][j];
-                if ((i != 0 && (*arrP)[i - 1][j] == val) && (j != 0 && (*arrP)[i][j - 1] == val) && idCache[j] != idCurr[j - 1]) {
+                var val = getPiece(&cubesOut, cubeInd, faceInd, i, j);
+                var diffRowVal = getPiece(&cubesOut, cubeInd, faceInd, i - 1, j);
+                var diffColVal = getPiece(&cubesOut, cubeInd, faceInd, i, j - 1);
+                if ((i != 0 && diffRowVal == val) && (j != 0 && diffColVal == val) && idCache[j] != idCurr[j - 1]) {
                     idCurr[j] = idCurr[j - 1];
                     scoring[val]--;
                     count--;
-                } else if (i != 0 && (*arrP)[i - 1][j] == val) {
+                } else if (i != 0 && diffRowVal == val) {
                     idCurr[j] = idCache[j];
-                } else if (j != 0 && (*arrP)[i][j - 1] == val) {
+                } else if (j != 0 && diffColVal == val) {
                     idCurr[j] = idCurr[j - 1];
                 } else {
                     idCurr[j] = ids;
@@ -86,100 +88,96 @@ export const move_eval_shader = (cubeDim, moves) => {
         return f32(score) / f32(tot * tot);
     }
 
-    fn nextCube(cubePtr: ptr<storage, Cube, read_write>, movePtr: ptr<function, CubeMove>) -> Cube {
-        return Cube();
-    }
-
-    fn rotate90(arrPIn: ptr<storage, Face, read_write>, arrPOut: ptr<storage, Face, read_write>) {
+    fn rotate90(cubeIndIn: u32, cubeIndOut: u32, faceInd: u32) {
         for (var i: u32 = 0; i < dimension; i++) {
             for (var j: u32 = 0; j < dimension; j++) {
-                (*arrPOut)[dimension - j - 1][i] = (*arrPIn)[i][j];
+                setPiece(cubeIndOut, faceInd, dimension - j - 1, i, getPiece(&cubesU32, cubeIndIn, faceInd, i, j));
             }
         }
     }
 
-    fn rotate180(arrPIn: ptr<storage, Face, read_write>, arrPOut: ptr<storage, Face, read_write>) {
+    fn rotate180(cubeIndIn: u32, cubeIndOut: u32, faceInd: u32) {
         for (var i: u32 = 0; i < dimension; i++) {
             for (var j: u32 = 0; j < dimension; j++) {
-                (*arrPOut)[dimension - i - 1][dimension - j - 1] = (*arrPIn)[i][j];
+                setPiece(cubeIndOut, faceInd, dimension - i - 1, dimension - j - 1, getPiece(&cubesU32, cubeIndIn, faceInd, i, j));
             }
         }
     }
 
-    fn rotateN90(arrPIn: ptr<storage, Face, read_write>, arrPOut: ptr<storage, Face, read_write>) {
+    fn rotateN90(cubeIndIn: u32, cubeIndOut: u32, faceInd: u32) {
         for (var i: u32 = 0; i < dimension; i++) {
             for (var j: u32 = 0; j < dimension; j++) {
-                (*arrPOut)[j][dimension - i - 1] = (*arrPIn)[i][j];
+                setPiece(cubeIndOut, faceInd, j, dimension - i - 1, getPiece(&cubesU32, cubeIndIn, faceInd, i, j));
             }
         }
     }
 
-    fn rotateFace(arrPIn: ptr<storage, Face, read_write>, arrPOut: ptr<storage, Face, read_write>, rotCount: u32) {
+    fn rotateFace(cubeIndIn: u32, cubeIndOut: u32, faceInd: u32, rotCount: u32) {
         switch rotCount {
             case 1: {
-                rotate90(arrPIn, arrPOut);                                                 
+                rotate90(cubeIndIn, cubeIndOut, faceInd);                                                 
             }
             case 2: {
-                rotate180(arrPIn, arrPOut);                                                 
+                rotate180(cubeIndIn, cubeIndOut, faceInd);                                                 
             }
             case 3: {
-                rotateN90(arrPIn, arrPOut);                                                 
+                rotateN90(cubeIndIn, cubeIndOut, faceInd);                                                 
             }
             default: {}
         }
     }
 
-    fn copy1to1(arrPIn: ptr<storage, Face, read_write>, arrPOut: ptr<storage, Face, read_write>) {
+    fn copyFace(cubeIndIn: u32, cubeIndOut: u32, faceInd: u32) {
         for (var i: u32 = 0; i < dimension; i++) {
             for (var j: u32 = 0; j < dimension; j++) {
-                (*arrPOut)[i][j] = (*arrPIn)[i][j];
+                setPiece(cubeIndOut, faceInd, i, j, getPiece(&cubesU32, cubeIndIn, faceInd, i, j));
             }
         }
     }
 
 
-    fn rotateResidualFaces(moveInd: u32, cubePtrIn: ptr<storage, Cube, read_write>, cubePtrOut: ptr<storage, Cube, read_write>) {
+    fn rotateResidualFaces(moveInd: u32, cubeIndIn: u32, cubeIndOut: u32) {
         var cubeMove = moves[moveInd];
         for (var f: u32 = 0; f < 4; f++) {
             let curr = adj[cubeMove.face][f];
             let next = adj[cubeMove.face][(f + cubeMove.rotCount) % 4];
             for (var i: u32 = 0; i < dimension; i++) {
                 if (cubeMove.face == 0) {
-                    (*cubePtrOut)[next][cubeMove.depth][i] = (*cubePtrIn)[curr][cubeMove.depth][i];
+                    setPiece(cubeIndOut, next, cubeMove.depth, i, getPiece(&cubesU32, cubeIndIn, curr, cubeMove.depth, i));
                 } else if (cubeMove.face == 1) {
                     if (curr % 2 == 1) {
                         if (next % 2 == 1) {
-                            (*cubePtrOut)[next][i][dimension - 1 - cubeMove.depth] = (*cubePtrIn)[curr][i][dimension - 1 - cubeMove.depth];
+                            setPiece(cubeIndOut, next, i, dimension - 1 - cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, i, dimension - 1 - cubeMove.depth));
                         } else {
-                            (*cubePtrOut)[next][i][cubeMove.depth] = (*cubePtrIn)[curr][i][dimension - 1 - cubeMove.depth];
+                            setPiece(cubeIndOut, next, i, cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, i, dimension - 1 - cubeMove.depth));
                         }
                     } else {
                         if (next % 2 == 1) {
-                            (*cubePtrOut)[next][i][dimension - 1 - cubeMove.depth] = (*cubePtrIn)[curr][i][cubeMove.depth];
+                            setPiece(cubeIndOut, next, i, dimension - 1 - cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, i, cubeMove.depth));
                         } else {
-                            (*cubePtrOut)[next][i][cubeMove.depth] = (*cubePtrIn)[curr][i][cubeMove.depth];
+                            setPiece(cubeIndOut, next, i, cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, i, cubeMove.depth));
                         }
                     }
                 } else if (cubeMove.face == 2) {
                     if (curr == 0 || curr == 5) {
                         if (next == 0 || next == 5) {
-                            (*cubePtrOut)[next][dimension - 1 - cubeMove.depth][i] = (*cubePtrIn)[curr][dimension - 1 - cubeMove.depth][i];
+                            setPiece(cubeIndOut, next, dimension - 1 - cubeMove.depth, i, getPiece(&cubesU32, cubeIndIn, curr, dimension - 1 - cubeMove.depth, i));
                         } else if (next == 1) {
-                            (*cubePtrOut)[next][dimension - 1 - i][dimension - 1 - cubeMove.depth] = (*cubePtrIn)[curr][dimension - 1 - cubeMove.depth][i];
+                            setPiece(cubeIndOut, next, dimension - 1 - i, dimension - 1 - cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, dimension - 1 - cubeMove.depth, i));
                         } else if (next == 4) {
-                            (*cubePtrOut)[next][i][cubeMove.depth] = (*cubePtrIn)[curr][dimension - 1 - cubeMove.depth][i];
+                            setPiece(cubeIndOut, next, i, cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, dimension - 1 - cubeMove.depth, i));
                         }
                     } else if (curr == 1) {
                         if (next == 0 || next == 5) {
-                            (*cubePtrOut)[next][dimension - 1 - cubeMove.depth][i] = (*cubePtrIn)[curr][dimension - 1 - i][dimension - 1 - cubeMove.depth];
+                            setPiece(cubeIndOut, next, dimension - 1 - cubeMove.depth, i, getPiece(&cubesU32, cubeIndIn, curr, dimension - 1 - i, dimension - 1 - cubeMove.depth));
                         } else if (next == 4) {
-                            (*cubePtrOut)[next][dimension - 1 - cubeMove.depth][i] = (*cubePtrIn)[curr][dimension - 1 - i][dimension - 1 - cubeMove.depth];
+                            setPiece(cubeIndOut, next, dimension - 1 - cubeMove.depth, i, getPiece(&cubesU32, cubeIndIn, curr, dimension - 1 - i, dimension - 1 - cubeMove.depth));
                         }
                     } else if (curr == 4) {
                         if (next == 0 || next == 5) {
-                            (*cubePtrOut)[next][dimension - 1 - cubeMove.depth][i] = (*cubePtrIn)[curr][i][cubeMove.depth];
+                            setPiece(cubeIndOut, next, dimension - 1 - cubeMove.depth, i, getPiece(&cubesU32, cubeIndIn, curr, i, cubeMove.depth));
                         } else if (next == 1) {
-                            (*cubePtrOut)[next][dimension - 1 - i][dimension - 1 - cubeMove.depth] = (*cubePtrIn)[curr][i][cubeMove.depth];
+                            setPiece(cubeIndOut, next, dimension - 1 - i, dimension - 1 - cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, i, cubeMove.depth));
                         }
                     }
                 }
@@ -187,7 +185,7 @@ export const move_eval_shader = (cubeDim, moves) => {
         }
     }
 
-    fn rotateCube(moveInd: u32, cubePtrIn: ptr<storage, Cube, read_write>, cubePtrOut: ptr<storage, Cube, read_write>) {
+    fn rotateCube(moveInd: u32, cubeIndIn: u32, cubeIndOut: u32) {
         var faceRot = moves[moveInd].face;
         var count = moves[moveInd].rotCount;
         if (moves[moveInd].depth == dimension - 1) {
@@ -196,11 +194,41 @@ export const move_eval_shader = (cubeDim, moves) => {
         }
 
         for (var i: u32 = 0; i < 6; i++) {
-            if (i == faceRot) {rotateFace(&(*cubePtrIn)[i], &(*cubePtrOut)[i], count);}
-            else {copy1to1(&(*cubePtrIn)[i], &(*cubePtrOut)[i]);}
+            if (i == faceRot) {rotateFace(cubeIndIn, cubeIndOut, i, count);}
+            else {copyFace(cubeIndIn, cubeIndOut, i);}
         }
 
-        rotateResidualFaces(moveInd, cubePtrIn, cubePtrOut);
+        rotateResidualFaces(moveInd, cubeIndIn, cubeIndOut);
+    }
+
+    fn getPiece(cubesArr: ptr<storage, array<u32>, read_write>, cubeIndex: u32, faceIndex: u32, pieceRow: u32, pieceCol: u32) -> u32 {
+        var index = 3 * ((6 * cubeIndex + faceIndex) * dim_sq + pieceRow * dimension + pieceCol);
+        var flr = (index - index % 32) / 32;
+        var rem = (index + 3) % 32;
+
+        var relInd = index - flr * 32;
+        var val = ((7u << relInd) & (*cubesArr)[flr]) >> relInd;
+        if (rem == 1) {
+            val = val | (((*cubesArr)[flr + 1] & (1u)) << 2u);
+        } else if (rem == 2) {
+            val = val | (((*cubesArr)[flr + 1] & (3u)) << 1u);
+        }
+
+        return val;
+    }
+
+    fn setPiece(cubeIndex: u32, faceIndex: u32, pieceRow: u32, pieceCol: u32, val: u32) {
+        var index = 3 * ((6 * cubeIndex + faceIndex) * dim_sq + pieceRow * dimension + pieceCol);
+        var flr = (index - index % 32) / 32;
+        var rem = (index + 3) % 32;
+
+        var relInd = index - flr * 32;
+        cubesOut[flr] = (~(7u << relInd) & cubesOut[flr]) | (val << relInd);
+        if (rem == 1) {
+            cubesOut[flr + 1] = (cubesOut[flr + 1] & ~(1u)) | (val >> 2u);
+        } else if (rem == 2) {
+            cubesOut[flr + 1] = (cubesOut[flr + 1] & ~(3u)) | (val >> 1u);
+        }
     }
 `;
 }

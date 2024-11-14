@@ -1,5 +1,5 @@
 export const move_eval_shader = (cubeDim, moves) => {
-    console.log(moves)
+    // console.log(moves)
     const movesCount = moves.length;
     const movesString = movesToString(moves);
     // console.log(movesString)
@@ -21,11 +21,11 @@ export const move_eval_shader = (cubeDim, moves) => {
     }
 
     @group(0) @binding(0)
-    var<storage, read_write> cubesU32: array<u32>;
+    var<storage, read_write> cubesU32: array<atomic<u32>>;
     @group(0) @binding(1)
     var<storage, read_write> output: array<array<f32, 6>>;
     @group(0) @binding(2)
-    var<storage, read_write> cubesOut: array<u32>;
+    var<storage, read_write> cubesOut: array<atomic<u32>>;
 
 
     @compute @workgroup_size(1)
@@ -39,9 +39,12 @@ export const move_eval_shader = (cubeDim, moves) => {
             return;
         }
 
-        rotateCube(index % ${movesCount}, 0, index);
+        // rotateCube(23, index / ${movesCount}, index);
+        rotateCube(index % ${movesCount}, index / ${movesCount}, index);
         for (var i: u32  = 0; i < 6; i++) {
+            // output[index][0] = f32(index % ${movesCount});
             output[index][i] = scoreDP(index, i);
+            // output[index][1] = f32(index);
         }
     }
 
@@ -91,6 +94,7 @@ export const move_eval_shader = (cubeDim, moves) => {
     fn rotate90(cubeIndIn: u32, cubeIndOut: u32, faceInd: u32) {
         for (var i: u32 = 0; i < dimension; i++) {
             for (var j: u32 = 0; j < dimension; j++) {
+                // setPiece(cubeIndOut, faceInd, dimension - j - 1, i, 1);
                 setPiece(cubeIndOut, faceInd, dimension - j - 1, i, getPiece(&cubesU32, cubeIndIn, faceInd, i, j));
             }
         }
@@ -99,6 +103,7 @@ export const move_eval_shader = (cubeDim, moves) => {
     fn rotate180(cubeIndIn: u32, cubeIndOut: u32, faceInd: u32) {
         for (var i: u32 = 0; i < dimension; i++) {
             for (var j: u32 = 0; j < dimension; j++) {
+                // setPiece(cubeIndOut, faceInd, dimension - i - 1, dimension - j - 1, 1);
                 setPiece(cubeIndOut, faceInd, dimension - i - 1, dimension - j - 1, getPiece(&cubesU32, cubeIndIn, faceInd, i, j));
             }
         }
@@ -107,6 +112,7 @@ export const move_eval_shader = (cubeDim, moves) => {
     fn rotateN90(cubeIndIn: u32, cubeIndOut: u32, faceInd: u32) {
         for (var i: u32 = 0; i < dimension; i++) {
             for (var j: u32 = 0; j < dimension; j++) {
+                // setPiece(cubeIndOut, faceInd, j, dimension - i - 1, 1);
                 setPiece(cubeIndOut, faceInd, j, dimension - i - 1, getPiece(&cubesU32, cubeIndIn, faceInd, i, j));
             }
         }
@@ -123,13 +129,19 @@ export const move_eval_shader = (cubeDim, moves) => {
             case 3: {
                 rotateN90(cubeIndIn, cubeIndOut, faceInd);                                                 
             }
-            default: {}
+            default: {
+                copyFace(cubeIndIn, cubeIndOut, faceInd);
+            }
         }
     }
 
     fn copyFace(cubeIndIn: u32, cubeIndOut: u32, faceInd: u32) {
         for (var i: u32 = 0; i < dimension; i++) {
             for (var j: u32 = 0; j < dimension; j++) {
+                // if (faceInd == 5) {
+                    // setPiece(cubeIndOut, faceInd, i, j, 7);
+                    // continue;
+                // }
                 setPiece(cubeIndOut, faceInd, i, j, getPiece(&cubesU32, cubeIndIn, faceInd, i, j));
             }
         }
@@ -149,11 +161,11 @@ export const move_eval_shader = (cubeDim, moves) => {
                         if (next % 2 == 1) {
                             setPiece(cubeIndOut, next, i, dimension - 1 - cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, i, dimension - 1 - cubeMove.depth));
                         } else {
-                            setPiece(cubeIndOut, next, i, cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, i, dimension - 1 - cubeMove.depth));
+                            setPiece(cubeIndOut, next, i, cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, dimension - 1 - i, dimension - 1 - cubeMove.depth));
                         }
                     } else {
                         if (next % 2 == 1) {
-                            setPiece(cubeIndOut, next, i, dimension - 1 - cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, i, cubeMove.depth));
+                            setPiece(cubeIndOut, next, dimension - 1 - i, dimension - 1 - cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, i, cubeMove.depth));
                         } else {
                             setPiece(cubeIndOut, next, i, cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, i, cubeMove.depth));
                         }
@@ -171,7 +183,7 @@ export const move_eval_shader = (cubeDim, moves) => {
                         if (next == 0 || next == 5) {
                             setPiece(cubeIndOut, next, dimension - 1 - cubeMove.depth, i, getPiece(&cubesU32, cubeIndIn, curr, dimension - 1 - i, dimension - 1 - cubeMove.depth));
                         } else if (next == 4) {
-                            setPiece(cubeIndOut, next, dimension - 1 - cubeMove.depth, i, getPiece(&cubesU32, cubeIndIn, curr, dimension - 1 - i, dimension - 1 - cubeMove.depth));
+                            setPiece(cubeIndOut, next, i, cubeMove.depth, getPiece(&cubesU32, cubeIndIn, curr, dimension - 1 - i, dimension - 1 - cubeMove.depth));
                         }
                     } else if (curr == 4) {
                         if (next == 0 || next == 5) {
@@ -194,24 +206,24 @@ export const move_eval_shader = (cubeDim, moves) => {
         }
 
         for (var i: u32 = 0; i < 6; i++) {
-            if (i == faceRot) {rotateFace(cubeIndIn, cubeIndOut, i, count);}
+            if (i == faceRot && moves[moveInd].depth % (dimension - 1) == 0) {rotateFace(cubeIndIn, cubeIndOut, i, count);}
             else {copyFace(cubeIndIn, cubeIndOut, i);}
         }
 
         rotateResidualFaces(moveInd, cubeIndIn, cubeIndOut);
     }
 
-    fn getPiece(cubesArr: ptr<storage, array<u32>, read_write>, cubeIndex: u32, faceIndex: u32, pieceRow: u32, pieceCol: u32) -> u32 {
+    fn getPiece(cubesArr: ptr<storage, array<atomic<u32>>, read_write>, cubeIndex: u32, faceIndex: u32, pieceRow: u32, pieceCol: u32) -> u32 {
         var index = 3 * ((6 * cubeIndex + faceIndex) * dim_sq + pieceRow * dimension + pieceCol);
         var flr = (index - index % 32) / 32;
         var rem = (index + 3) % 32;
 
         var relInd = index - flr * 32;
-        var val = ((7u << relInd) & (*cubesArr)[flr]) >> relInd;
+        var val = ((7u << relInd) & atomicLoad(&(*cubesArr)[flr])) >> relInd;
         if (rem == 1) {
-            val = val | (((*cubesArr)[flr + 1] & (1u)) << 2u);
+            val = val | ((atomicLoad(&(*cubesArr)[flr + 1]) & (1u)) << 2u);
         } else if (rem == 2) {
-            val = val | (((*cubesArr)[flr + 1] & (3u)) << 1u);
+            val = val | ((atomicLoad(&(*cubesArr)[flr + 1]) & (3u)) << 1u);
         }
 
         return val;
@@ -223,11 +235,17 @@ export const move_eval_shader = (cubeDim, moves) => {
         var rem = (index + 3) % 32;
 
         var relInd = index - flr * 32;
-        cubesOut[flr] = (~(7u << relInd) & cubesOut[flr]) | (val << relInd);
+        atomicAnd(&cubesOut[flr], ~(7u << relInd));
+        atomicOr(&cubesOut[flr] , (val << relInd));
+        // atomicOr(&cubesOut[flr] , (~(7u << relInd) & atomicLoad(&cubesOut[flr])) | (val << relInd));
         if (rem == 1) {
-            cubesOut[flr + 1] = (cubesOut[flr + 1] & ~(1u)) | (val >> 2u);
+            atomicAnd(&cubesOut[flr + 1], ~(1u));
+            atomicOr(&cubesOut[flr + 1] , (val >> 2u));
+            // atomicOr(&cubesOut[flr + 1] , (atomicLoad(&cubesOut[flr + 1]) & ~(1u)) | (val >> 2u));
         } else if (rem == 2) {
-            cubesOut[flr + 1] = (cubesOut[flr + 1] & ~(3u)) | (val >> 1u);
+            atomicAnd(&cubesOut[flr + 1], ~(3u));
+            atomicOr(&cubesOut[flr + 1] , (val >> 1u));
+            // atomicOr(&cubesOut[flr + 1] , (atomicLoad(&cubesOut[flr + 1]) & ~(3u)) | (val >> 1u));
         }
     }
 `;

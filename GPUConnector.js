@@ -6,13 +6,21 @@ export default class GPUConnector {
         bindGroupLayouts: [],
         shaders: {},
         pipelines: {},
-    }
+    };
 
     async initGPU(descriptor = {}) {
-        if (!navigator.gpu) throw Error('WebGPU not supported.');
+        if (!navigator.gpu) throw Error("WebGPU not supported.");
 
         const adapter = await navigator.gpu.requestAdapter();
         if (!adapter) throw Error(`Couldn't request WebGPU ADAPTER.`);
+
+        // const twoGig = 2147483648;
+        // const requiredLimits = {
+        // maxStorageBufferBindingSize: twoGig,
+        // maxBufferSize: twoGig,
+        // };
+
+        // descriptor.requiredLimits = requiredLimits;
 
         const device = await adapter.requestDevice(descriptor);
         this.device = device;
@@ -21,7 +29,7 @@ export default class GPUConnector {
     addBindGroup(bindGroup) {
         this.gpuData.bindGroups.push(bindGroup);
     }
-    
+
     setPipeline(name, pipeline) {
         this.gpuData.pipelines[name] = pipeline;
     }
@@ -43,12 +51,19 @@ export default class GPUConnector {
     }
 
     createBuffer(name, size, usage) {
-        if (this.device.limits.maxStorageBufferBindingSize < size) throw new Error('Buffer to Large');
+        if (this.device.limits.maxStorageBufferBindingSize < size)
+            throw new Error("Buffer to Large");
         this.setBuffer(name, this.device.createBuffer({ size, usage }));
     }
 
     writeBuffer(name, bufferOffset, data, dataOffset, dataSize) {
-        this.device.queue.writeBuffer(this.getBuffer(name), bufferOffset, data, dataOffset, dataSize);
+        this.device.queue.writeBuffer(
+            this.getBuffer(name),
+            bufferOffset,
+            data,
+            dataOffset,
+            dataSize
+        );
     }
 
     writeBuffer1to1(name, data) {
@@ -59,14 +74,24 @@ export default class GPUConnector {
         const sourceBuff = this.getBuffer(name);
         size = size || sourceBuff.size;
         const copyName = `${name}_copy`;
-        this.createBuffer(copyName, size, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
+        this.createBuffer(
+            copyName,
+            size,
+            GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+        );
 
-        encoder.copyBufferToBuffer(sourceBuff, 0, this.getBuffer(copyName), 0, size);
+        encoder.copyBufferToBuffer(
+            sourceBuff,
+            0,
+            this.getBuffer(copyName),
+            0,
+            size
+        );
     }
 
     async mapBufferToCPU(name, OutTypedArrConstructor) {
         const buff = this.getBuffer(name);
-        await buff.mapAsync(GPUMapMode.READ)
+        await buff.mapAsync(GPUMapMode.READ);
         return new OutTypedArrConstructor(buff.getMappedRange());
     }
 
@@ -83,14 +108,29 @@ export default class GPUConnector {
     }
 
     getTexture(name) {
-        return this.gpuData.textures[name]
+        return this.gpuData.textures[name];
     }
 
     set device(newDevice) {
-        this.gpuData.DEVICE = newDevice
+        this.gpuData.DEVICE = newDevice;
     }
 
     get device() {
         return this.gpuData.DEVICE;
+    }
+
+    static waitForAnimationFrame(work, waitConditonFunc) {
+        return new Promise((resolve) => {
+            // Request the next animation frame and resolve the promise when it is called
+            const refreshId = requestAnimationFrame(async (timeStamp) => {
+                const result = await work();
+                // if (waitConditonFunc())
+                //     await this.waitForAnimationFrame(work, waitConditonFunc);
+                // else {
+                //     resolve({ refreshId, result }); // Resolving after the animation frame has been executed
+                // }
+                resolve({ refreshId, result});
+            });
+        });
     }
 }

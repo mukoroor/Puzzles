@@ -308,9 +308,8 @@ export default class RubixFace {
     return arr;
   }
 
-  toBinary() {
-    const twoD = this.to2DArray().map(e => e.map(p => p.faceData[this.id]));
-    return twoD.flat(2).map(e => e.toString(2).padStart(3, '0')).reverse().join('');
+  get coloringsArray() {
+    return this.to2DArray().map(row => row.map(piece =>piece.getFace(this.id)));
   }
 
   scoreDP(arr) {

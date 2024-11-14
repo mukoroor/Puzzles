@@ -115,11 +115,11 @@ export default class RubixPuzzle {
 
   reverseLastMove() {
     if (this.moves.length == 0) return undefined
-    return this.#reverseMove(this.moves.pop())
+    return this.reverseMove(this.moves.pop())
 
   }
 
-  #reverseMove([face, depth, direction, count]) {
+  reverseMove([face, depth, direction, count]) {
     return [face, depth, `${(direction.length > 2 ? "": "c")}cw`, count, false]
   }
 
@@ -151,7 +151,7 @@ export default class RubixPuzzle {
       );
       console.table(
         [["Face", "Depth", "Direction", "Count"]].concat(
-          this.moves.toReversed().map(e => this.#reverseMove(e))
+          this.moves.toReversed().map(e => this.reverseMove(e))
         )
       );
       // console.log(scores);
@@ -186,7 +186,7 @@ export default class RubixPuzzle {
   }
 }
 
-const SCRAMBLE_MOVES = 20;
+const SCRAMBLE_MOVES = 5;
 
 // console.time('testInit')
 // const testRubix = new RubixPuzzle(5);

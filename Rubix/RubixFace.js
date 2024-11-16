@@ -15,8 +15,7 @@ export default class RubixFace {
   edges = [];
   interiors = [];
   centers = [];
-  #memoize = {
-  }
+  #memoize = {};
 
   constructor(id, lengthFunc) {
     this.id = id;
@@ -74,17 +73,17 @@ export default class RubixFace {
     let max = this.length - 2;
 
     let rings = [this.#buildCornerRing()];
-    
+
     if (this.length < 3) {
-      rings[0].forEach(e => this.addCenter(e));
+      rings[0].forEach((e) => this.addCenter(e));
       return;
-    };
+    }
 
     for (let i = max; i > 0; i -= 2) {
       let ring = this.#buildRing(i);
       if (i < 3) {
-        ring.forEach(e => this.addCenter(e));
-      };
+        ring.forEach((e) => this.addCenter(e));
+      }
       rings.unshift(ring);
     }
 
@@ -213,7 +212,7 @@ export default class RubixFace {
   }
 
   get #cornerOrientation() {
-    return 8 % this.id == 0 ? 'cw': 'ccw';
+    return 8 % this.id == 0 ? "cw" : "ccw";
   }
 
   toString() {
@@ -226,13 +225,13 @@ export default class RubixFace {
   }
 
   score() {
-    console.time('reg')
-    const m = {}
-    const f = p => {
+    console.time("reg");
+    const m = {};
+    const f = (p) => {
       let key = p.faceData[this.id];
       if (m[key]) m[key]++;
       else m[key] = 1;
-    }
+    };
     this.corners.forEach(f);
     this.edges.forEach(f);
     this.interiors.forEach(f);
@@ -241,22 +240,22 @@ export default class RubixFace {
     let sum = 0;
     let pieceCount = this.length * this.length;
     for (const val of Object.values(m)) {
-      sum += Math.pow(val / pieceCount , 2)
+      sum += Math.pow(val / pieceCount, 2);
     }
-    console.timeEnd('reg')
-    console.log(Object.values(m), 'reg score');
+    console.timeEnd("reg");
+    console.log(Object.values(m), "reg score");
     return sum;
   }
 
   scoreDFS() {
-    console.time('dfs')
+    console.time("dfs");
     const visited = new Set();
 
-    const types = {}
+    const types = {};
 
-    let q = [this.corners[0]]
+    let q = [this.corners[0]];
     while (q.length != 0) {
-      let curr = q.shift()
+      let curr = q.shift();
       let key = curr.faceData[this.id];
       if (visited.has(curr.id)) {
         types[key]++;
@@ -267,7 +266,10 @@ export default class RubixFace {
       else types[key] = 1;
 
       for (const v of RubixFace.FACE_ADJACENCY[this.id]) {
-        if (typeof curr.faceData[v] != 'number' && !visited.has(curr.faceData[v].id)) {
+        if (
+          typeof curr.faceData[v] != "number" &&
+          !visited.has(curr.faceData[v].id)
+        ) {
           if (curr.faceData[v].faceData[this.id] == key) {
             types[key]--;
           }
@@ -275,13 +277,14 @@ export default class RubixFace {
         }
       }
     }
-    
-    let tot = Object.values(types).reduce((a, c) => a + c), sum = 0;
+
+    let tot = Object.values(types).reduce((a, c) => a + c),
+      sum = 0;
     for (const val of Object.values(types)) {
-      sum += Math.pow(val / tot , 2)
+      sum += Math.pow(val / tot, 2);
     }
-    console.timeEnd('dfs')
-    console.log(Object.values(types), 'dfs score');
+    console.timeEnd("dfs");
+    console.log(Object.values(types), "dfs score");
     return sum;
   }
 
@@ -289,15 +292,16 @@ export default class RubixFace {
     if (this.#memoize.twoD) return this.#memoize.twoD;
     if (this.length == 1) return [[this.centers[0]]];
 
-    const arr = Array.from({length: this.length}, () => Array(this.length));
+    const arr = Array.from({ length: this.length }, () => Array(this.length));
 
-    let currRow = this.corners[this.id == 3 ? 1: 0];
+    let currRow = this.corners[this.id == 3 ? 1 : 0];
 
-    let rowJoint = currRow.activations[this.id].next.face, colJoint = currRow.activations[rowJoint].next.face;
+    let rowJoint = currRow.activations[this.id].next.face,
+      colJoint = currRow.activations[rowJoint].next.face;
     rowJoint = 5 - rowJoint;
     colJoint = 5 - colJoint;
     for (let i = 0; i < arr.length; i++) {
-      let currEl  = currRow;
+      let currEl = currRow;
       for (let j = 0; j < arr.length; j++) {
         arr[i][j] = currEl;
         currEl = currEl.faceData[colJoint];
@@ -309,43 +313,78 @@ export default class RubixFace {
   }
 
   get coloringsArray() {
-    return this.to2DArray().map(row => row.map(piece =>piece.getFace(this.id)));
+    return this.to2DArray().map((row) =>
+      row.map((piece) => piece.getFace(this.id))
+    );
   }
 
   scoreDP(arr) {
     // console.time('dp')
     const scoring = Array(6).fill(0);
-    const twoD = arr || this.to2DArray().map(e => e.map(c => c.faceData[this.id]));
+    const twoD =
+      arr || this.coloringsArray;
 
-    let count = 0, ids = 1;
+    let count = 0,
+      ids = 1;
     let idCache = Array(twoD.length).fill(0);
     let idCurr = Array(twoD.length).fill(0);
+    let arrD = [];
 
     for (let i = 0; i < twoD.length; i++) {
       for (let j = 0; j < twoD.length; j++) {
         const val = twoD[i][j];
-        if ((i != 0 && twoD[i - 1][j] == val) && (j != 0 && twoD[i][j - 1] == val) && idCache[j] != idCurr[j - 1]) {
+        if (
+          i != 0 &&
+          twoD[i - 1][j] == val &&
+          j != 0 &&
+          twoD[i][j - 1] == val &&
+          idCache[j] != idCurr[j - 1] &&
+          idCache[j - 1] != idCache[j]
+        ) {
+          // console.log(i, j, '-');
           idCurr[j] = idCurr[j - 1];
           scoring[val]--;
           count--;
-        } else if (i != 0 && twoD[i - 1][j] == val) {
-          idCurr[j] = idCache[j];
         } else if (j != 0 && twoD[i][j - 1] == val) {
           idCurr[j] = idCurr[j - 1];
+        } else if (i != 0 && twoD[i - 1][j] == val) {
+          idCurr[j] = idCache[j];
         } else {
+          // console.log(i, j);
           idCurr[j] = ids++;
           scoring[val]++;
           count++;
         }
       }
-      idCache = idCurr;
+      idCache = [...idCurr];
+      arrD.push(idCache)
+      // console.log(scoring)
     }
-    let tot = scoring.reduce((a, c) => a + c), sum = 0;
+    let tot = scoring.reduce((a, c) => a + c),
+      sum = 0;
     for (const val of scoring) {
-      sum += Math.pow(val / tot , 2)
+      sum += Math.pow(val / tot, 2);
     }
     // console.timeEnd('dp')
+    // console.log(arrD)
     // console.log(scoring, tot, 'dp score')
     return sum;
   }
 }
+
+// const test = [
+//   [3, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+//   [3, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+//   [2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+//   [3, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+//   [3, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+//   [3, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+//   [3, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+//   [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+//   [3, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+//   [3, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+// ];
+
+// let testRubix = new RubixFace(10, () => 10);
+
+// console.log(testRubix.scoreDP(test));

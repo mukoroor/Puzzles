@@ -1,6 +1,6 @@
 import Drawer from "../Drawer.js";
 import { ROUNDED_SQUARE_INDICES, ROUNDED_SQUARE_VERTICES } from "./Meshes.js";
-import RubixPuzzle from "./RubixPuzzle.js";
+import RubixPuzzle, { DO_NOTHING_MOVE } from "./RubixPuzzle.js";
 import { frag_vert_shader } from "./RubixShader.js";
 import { frag_vert_aid_shader } from "./AidShader.js";
 import { AID_MESH } from "./Meshes.js";
@@ -25,7 +25,7 @@ export default class RubixPuzzleDrawer extends Drawer {
     [0, 0, 1, 1],
     [1, 1, 0, 1],
   ];
-  movementData = [0, 0, "", 1];
+  movementData = [0, 0, "", 1, true];
   rotationAngle = 0;
   rotationSpeed = 10;
   showFaceAid = true;
@@ -59,7 +59,7 @@ export default class RubixPuzzleDrawer extends Drawer {
     this.setUpKeyListener(
       (type) => type === "s" && this.puzzle.length > 1,
       () => {
-        this.puzzle.scramble();
+        this.puzzle.scramble(20, false);
         this.updateFlag = RubixPuzzleDrawer.UPDATE_FLAGS.ROTATION;
       }
     );
@@ -126,6 +126,12 @@ export default class RubixPuzzleDrawer extends Drawer {
         this.#undo();
       }
     );
+    this.setUpKeyListener(
+      (type) => type === "n",
+      () => {
+        this.#naiveSolve(2);
+      }
+    );
   }
 
   async init() {
@@ -188,7 +194,7 @@ export default class RubixPuzzleDrawer extends Drawer {
           if (Math.abs(this.rotationAngle) == this.movementData[3] * 90) {
             this.rotationAngle = 0;
             rotationData = [];
-            this.#rotate(this.movementData, this.movementData.length < 5);
+            this.#rotate(...this.movementData);
             this.movementData = this.movementData.slice(0, 4);
             this.#updateInterpolationBuffer();
           }
@@ -771,7 +777,7 @@ export default class RubixPuzzleDrawer extends Drawer {
     this.updateFlag = Drawer.UPDATE_FLAGS.RESET;
     console.log(
       `%cNEW RUBIX SIZE ${newLength}`,
-      "font-weight: bold; color: orange; font-size: 1.25em;"
+      "font-weight: bold; color: orange; font-size: 1.05em;"
     );
   }
 
@@ -787,7 +793,7 @@ export default class RubixPuzzleDrawer extends Drawer {
     this.movementData[1] = newDepth;
   }
 
-  #rotate([face, depth, direction, count], store = true) {
+  #rotate(face, depth, direction, count, store = true) {
     if (face === undefined) return;
     const ids = this.puzzle.rotate(face, depth, direction, count, store);
   }
@@ -804,174 +810,64 @@ export default class RubixPuzzleDrawer extends Drawer {
   }
 
   #unscramble() {
+    const moves = this.puzzle.reverseAllMoves();
+    this.#performMoves(moves, false);
+  }
+
+  #performMoves(moves, onComplete = () => {}, store=true, timeout=300) {
+    let index = 0;
     const interval = setInterval(() => {
       if (this.updateFlag != Drawer.UPDATE_FLAGS.IDLE) return;
-      const move = this.puzzle.reverseLastMove();
-      if (!move) {
+      if (index == moves.length) {
         clearInterval(interval);
+        onComplete();
         return;
       }
+      const move = [...moves[index++], store]
       this.movementData = move;
       this.#startInterpolation();
-    }, 300);
+    }, timeout);
   }
 
-  async #reccomend() {
+  async #reccomend(generations=2, faceColorings = this.puzzle.faces.map(face => face.coloringsArray)) {
+    if (this.puzzle.length == 1) return;
     if (!this.evaluator.device) await this.evaluator.init();
-    const { result } = await this.evaluator.evaluate(1, this.puzzle.faces.map(face => face.coloringsArray));
-    return result;
+    return await this.evaluator.evaluate(generations, faceColorings);
+  }
+
+  async #naiveSolve(maxGenerations=1, maxIters=300) {
+    if (this.puzzle.length == 1) return;
+    let iter = 0;
+    const solveMoves = [];
+    let colorings;
+    let finish = false
+
+    while(iter < maxIters && !finish) {
+      const {moves, puzzleState} = await this.#reccomend(maxGenerations, colorings);
+      colorings = puzzleState;
+      moves.forEach(move => {
+        if (arraysAreEqual(move, DO_NOTHING_MOVE)) finish = true;
+        else {
+          solveMoves.push(move);
+          iter++;
+        }
+      })
+    }
+
+    console.log(this.puzzle.scores())
+    console.log(iter, solveMoves)
+    this.#performMoves(solveMoves, () => console.log(this.puzzle.scores()));
   }
 }
-// let testM = [
-//   [0, 0, "cw", 1],
-//   [0, 0, "cw", 2],
-//   [0, 0, "cw", 3],
-//   [0, 0, "ccw", 1],
-//   [0, 0, "ccw", 2],
-//   [0, 0, "ccw", 3],
-//   [0, 1, "cw", 1],
-//   [0, 1, "cw", 2],
-//   [0, 1, "cw", 3],
-//   [0, 1, "ccw", 1],
-//   [0, 1, "ccw", 2],
-//   [0, 1, "ccw", 3],
-//   [0, 2, "cw", 1],
-//   [0, 2, "cw", 2],
-//   [0, 2, "cw", 3],
-//   [0, 2, "ccw", 1],
-//   [0, 2, "ccw", 2],
-//   [0, 2, "ccw", 3],
-//   [1, 0, "cw", 1],
-//   [1, 0, "cw", 2],
-//   [1, 0, "cw", 3],
-//   [1, 0, "ccw", 1],
-//   [1, 0, "ccw", 2],
-//   [1, 0, "ccw", 3],
-//   [1, 1, "cw", 1],
-//   [1, 1, "cw", 2],
-//   [1, 1, "cw", 3],
-//   [1, 1, "ccw", 1],
-//   [1, 1, "ccw", 2],
-//   [1, 1, "ccw", 3],
-//   [1, 2, "cw", 1],
-//   [1, 2, "cw", 2],
-//   [1, 2, "cw", 3],
-//   [1, 2, "ccw", 1],
-//   [1, 2, "ccw", 2],
-//   [1, 2, "ccw", 3],
-//   [2, 0, "cw", 1],
-//   [2, 0, "cw", 2],
-//   [2, 0, "cw", 3],
-//   [2, 0, "ccw", 1],
-//   [2, 0, "ccw", 2],
-//   [2, 0, "ccw", 3],
-//   [2, 1, "cw", 1],
-//   [2, 1, "cw", 2],
-//   [2, 1, "cw", 3],
-//   [2, 1, "ccw", 1],
-//   [2, 1, "ccw", 2],
-//   [2, 1, "ccw", 3],
-//   [2, 2, "cw", 1],
-//   [2, 2, "cw", 2],
-//   [2, 2, "cw", 3],
-//   [2, 2, "ccw", 1],
-//   [2, 2, "ccw", 2],
-//   [2, 2, "ccw", 3],
-//   [3, 0, "cw", 1],
-//   [3, 0, "cw", 2],
-//   [3, 0, "cw", 3],
-//   [3, 0, "ccw", 1],
-//   [3, 0, "ccw", 2],
-//   [3, 0, "ccw", 3],
-//   [3, 1, "cw", 1],
-//   [3, 1, "cw", 2],
-//   [3, 1, "cw", 3],
-//   [3, 1, "ccw", 1],
-//   [3, 1, "ccw", 2],
-//   [3, 1, "ccw", 3],
-//   [3, 2, "cw", 1],
-//   [3, 2, "cw", 2],
-//   [3, 2, "cw", 3],
-//   [3, 2, "ccw", 1],
-//   [3, 2, "ccw", 2],
-//   [3, 2, "ccw", 3],
-//   [4, 0, "cw", 1],
-//   [4, 0, "cw", 2],
-//   [4, 0, "cw", 3],
-//   [4, 0, "ccw", 1],
-//   [4, 0, "ccw", 2],
-//   [4, 0, "ccw", 3],
-//   [4, 1, "cw", 1],
-//   [4, 1, "cw", 2],
-//   [4, 1, "cw", 3],
-//   [4, 1, "ccw", 1],
-//   [4, 1, "ccw", 2],
-//   [4, 1, "ccw", 3],
-//   [4, 2, "cw", 1],
-//   [4, 2, "cw", 2],
-//   [4, 2, "cw", 3],
-//   [4, 2, "ccw", 1],
-//   [4, 2, "ccw", 2],
-//   [4, 2, "ccw", 3],
-//   [5, 0, "cw", 1],
-//   [5, 0, "cw", 2],
-//   [5, 0, "cw", 3],
-//   [5, 0, "ccw", 1],
-//   [5, 0, "ccw", 2],
-//   [5, 0, "ccw", 3],
-//   [5, 1, "cw", 1],
-//   [5, 1, "cw", 2],
-//   [5, 1, "cw", 3],
-//   [5, 1, "ccw", 1],
-//   [5, 1, "ccw", 2],
-//   [5, 1, "ccw", 3],
-//   [5, 2, "cw", 1],
-//   [5, 2, "cw", 2],
-//   [5, 2, "cw", 3],
-//   [5, 2, "ccw", 1],
-//   [5, 2, "ccw", 2],
-//   [5, 2, "ccw", 3],
-// ];
 
-// const gen = 1;
-// // const fal = new Set([43, 46, 49, 52, 55, 58, 61, 64])
-// document.addEventListener("DOMContentLoaded", async () => {
-//   const testRubix = new RubixPuzzle(3);
-//   const evaluator = new RubixMoveEvaluator(testRubix);
-//   await evaluator.init();
-//   testRubix.scramble(gen, true);
-//   // let i = 43;
-//   // let j = 55;
-//   // for (let i = 0; i < testM.length; i++) {
-//     // if (fal.has(i)) continue;
-//     // testRubix.rotate(...testM[i]);
-//     // for (let j = 0; j < testM.length; j++) {
-//       // if (fal.has(j)) continue;
-//       // testRubix.rotate(...testM[j]);
-//       console.time("gpcmp_score");
-//       console.log(await evaluator.evaluate(gen, testRubix.faces.map(face => face.coloringsArray)));
-//       // testRubix.rotate(...testRubix.reverseMove(testM[j]));
-//     // }
-//     // testRubix.rotate(...testRubix.reverseMove(testM[i]));
+//util
+function arraysAreEqual(arr1, arr2) {
+  if (arr1.length !== arr2.length) return false;
+  
+  for (let i = 0; i < arr1.length; i++) {
+    if (arr1[i] !== arr2[i]) return false;
+  }
 
-//   // }
-//   // let i = 16;
-//   // testRubix.faces.forEach((e, i) => {
-//   //   const twoD = e.to2DArray().map((x) => x.map((c) => c.faceData[e.id]));
-//   //   console.log(twoD, i);
-//   // });
-//   // evaluator.init().then(() => {
-//   //   console.time("gpcmp_score");
-//   //   evaluator.evaluate(gen);
-
-//   //   // testRubix.rotate(2, 0, 'ccw', 1);
-//   //   // testRubix.faces.forEach((e, i) => {
-//   //   //   const twoD = e.to2DArray().map(x => x.map(c => c.faceData[e.id]));
-//   //   //   console.log(twoD, 'index', i)
-//   //   // })
-//   //   console.time("cpcmp_score");
-//   //   console.log(testRubix.scores());
-//   //   console.timeEnd("cpcmp_score");
-//   // });
-// });
+  return true;
+}
 

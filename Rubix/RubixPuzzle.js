@@ -109,23 +109,31 @@ export default class RubixPuzzle {
     return Math.pow(this.length, 3) - Math.pow(Math.max(this.length - 2, 0), 3);
   }
 
-  get pieceFaceCount() {
-    return Math.pow(this.length, 2) * 6
-  }
-
-  reverseLastMove() {
-    if (this.moves.length == 0) return undefined
-    return this.reverseMove(this.moves.pop())
-
+  reverseLastMove(remove = true) {
+    if (this.moves.length == 0) return undefined;
+    return this.reverseMove(remove ? this.moves.pop() : this.moves.at(-1));
   }
 
   reverseMove([face, depth, direction, count]) {
-    return [face, depth, `${(direction.length > 2 ? "": "c")}cw`, count, false]
+    return [face, depth, `${direction.length > 2 ? "" : "c"}cw`, count, false];
+  }
+
+  reverseAllMoves(remove = true) {
+    const reversed = [];
+    const movesLength = this.moves.length;
+    for (let i = 0; i < movesLength; i++) {
+      reversed.push(
+        this.reverseMove(
+          remove ? this.moves.pop() : this.moves.at(movesLength - i)
+        )
+      );
+    }
+    return reversed;
   }
 
   reset() {}
 
-  rotate(face, depth = 0, direction = "cw", count = 0,  store=true) {
+  rotate(face, depth = 0, direction = "cw", count = 0, store = true) {
     if (this.length === 1) return;
     if (store) this.moves.push([face, depth, direction, count]);
     this.faces[face].rotate(depth, direction, count);
@@ -135,13 +143,14 @@ export default class RubixPuzzle {
     if (this.length === 1) return;
     console.time("scramble");
     let face, depth, count, direction;
-    const scores = []
+    const scores = [];
     for (let i = 0; i < scrambleCount; i++) {
       face = Math.floor(Math.random() * 6);
       depth = Math.floor(Math.random() * (this.length - 1));
       direction = Math.random() > 0.5 ? "cw" : "ccw";
       count = Math.floor(Math.random() * 3) + 1;
       // scores.push(this.scores());
+      // need to configure eval scoring
       this.rotate(face, depth, direction, count);
     }
     if (withLog) {
@@ -151,20 +160,19 @@ export default class RubixPuzzle {
       );
       console.table(
         [["Face", "Depth", "Direction", "Count"]].concat(
-          this.moves.toReversed().map(e => this.reverseMove(e))
+          this.moves.toReversed().map((e) => this.reverseMove(e))
         )
       );
       // console.log(scores);
     }
     console.timeEnd("scramble");
-
   }
 
   crossPattern() {
     for (let i = 0; i < 3; i++) {
       for (let j = 0; j < this.length; j += 2) {
-          this.moves.push([i, j, "cw", 2]);
-          this.faces[i].rotate(j, "cw", 2);
+        this.moves.push([i, j, "cw", 2]);
+        this.faces[i].rotate(j, "cw", 2);
       }
     }
   }
@@ -181,32 +189,9 @@ export default class RubixPuzzle {
   }
 
   scores() {
-    return this.faces.map(e => e.scoreDP());
-    // return this.faces.map(e => [e.score(), e.scoreDFS(), e.scoreDP()]);
+    return this.faces.map((e) => e.scoreDP());
   }
 }
 
 const SCRAMBLE_MOVES = 5;
-
-// console.time('testInit')
-// const testRubix = new RubixPuzzle(5);
-// // testRubix.scramble(SCRAMBLE_MOVES, false)
-// // console.log(testRubix.scores())
-// // testRubix.faces.forEach((e, i) => {
-// //   const twoD = e.to2DArray().map(x => x.map(c => c.faceData[e.id]));
-// //   console.log(i)
-// //   console.table(twoD)
-// // })
-
-// const g = [
-//   [1, 1, 1, 2, 0],
-//   [1, 0, 1, 2, 2],
-//   [1, 1, 1, 1, 1],
-//   [4, 4, 3, 2, 1],
-//   [4, 4, 5, 5, 1]
-// ]
-
-// testRubix.faces[0].scoreDP(g);
-
-
-// console.timeEnd('testInit')
+export const DO_NOTHING_MOVE = [0, 0, "ccw", 0];

@@ -14,14 +14,6 @@ export default class GPUConnector {
         const adapter = await navigator.gpu.requestAdapter();
         if (!adapter) throw Error(`Couldn't request WebGPU ADAPTER.`);
 
-        // const twoGig = 2147483648;
-        // const requiredLimits = {
-        // maxStorageBufferBindingSize: twoGig,
-        // maxBufferSize: twoGig,
-        // };
-
-        // descriptor.requiredLimits = requiredLimits;
-
         const device = await adapter.requestDevice(descriptor);
         this.device = device;
     }
@@ -89,10 +81,11 @@ export default class GPUConnector {
         );
     }
 
-    async mapBufferToCPU(name, OutTypedArrConstructor) {
+    async mapBufferToCPU(name, OutTypedArrConstructor, offset, size) {
         const buff = this.getBuffer(name);
-        await buff.mapAsync(GPUMapMode.READ);
-        return new OutTypedArrConstructor(buff.getMappedRange());
+        await buff.mapAsync(GPUMapMode.READ, offset, size);
+        const res = new OutTypedArrConstructor(buff.getMappedRange(offset, size));
+        return res;
     }
 
     getBuffer(name) {
@@ -119,17 +112,13 @@ export default class GPUConnector {
         return this.gpuData.DEVICE;
     }
 
-    static waitForAnimationFrame(work, waitConditonFunc) {
-        return new Promise((resolve) => {
+    static waitForAnimationFrame(work) {
+        return new Promise((resolve, reject) => {
             // Request the next animation frame and resolve the promise when it is called
             const refreshId = requestAnimationFrame(async (timeStamp) => {
                 const result = await work();
-                // if (waitConditonFunc())
-                //     await this.waitForAnimationFrame(work, waitConditonFunc);
-                // else {
-                //     resolve({ refreshId, result }); // Resolving after the animation frame has been executed
-                // }
-                resolve({ refreshId, result});
+                if (result) resolve(result);
+                else reject();
             });
         });
     }

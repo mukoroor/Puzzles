@@ -116,9 +116,12 @@ export default class GPUConnector {
         return new Promise((resolve, reject) => {
             // Request the next animation frame and resolve the promise when it is called
             const refreshId = requestAnimationFrame(async (timeStamp) => {
-                const result = await work();
-                if (result) resolve(result);
-                else reject();
+                try {
+                    const result = await work();
+                    resolve(result || refreshId);
+                } catch {
+                    reject();
+                }
             });
         });
     }

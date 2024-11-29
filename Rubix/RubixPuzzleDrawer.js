@@ -29,7 +29,7 @@ export default class RubixPuzzleDrawer extends Drawer {
   rotationAngle = 0;
   rotationSpeed = 10;
   showFaceAid = true;
-  puzzle = new RubixPuzzle(2);
+  puzzle = new RubixPuzzle(3);
   evaluator = new RubixMoveEvaluator();
 
   constructor() {
@@ -66,7 +66,7 @@ export default class RubixPuzzleDrawer extends Drawer {
     this.setUpKeyListener(
       (type) => type === "e" && this.puzzle.length > 1,
       () => {
-        this.puzzle.crossPattern();
+        this.puzzle.framePattern();
         this.updateFlag = RubixPuzzleDrawer.UPDATE_FLAGS.ROTATION;
       }
     );

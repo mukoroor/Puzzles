@@ -86,7 +86,7 @@ export default class RubixMoveEvaluator extends GPUConnector {
     this.writeBuffer1to1("face_colorings", COLORINGS);
   }
 
-  #createComputePipeline(faceDimension) {
+  #createComputePipeline() {
     this.createShader(
       "eval_compute_shader",
       move_eval_shader(this.faceDimension, this.moves)

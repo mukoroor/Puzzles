@@ -45,7 +45,7 @@ export default class GPUConnector {
     createBuffer(name, size, usage) {
         if (this.device.limits.maxStorageBufferBindingSize < size)
             throw new Error("Buffer to Large");
-        this.setBuffer(name, this.device.createBuffer({ size, usage }));
+        this.setBuffer(name, this.device.createBuffer({ label: name, size, usage }));
     }
 
     writeBuffer(name, bufferOffset, data, dataOffset, dataSize) {
@@ -62,7 +62,7 @@ export default class GPUConnector {
         this.writeBuffer(name, 0, data, 0, data.length);
     }
 
-    copyBuffer(name, encoder = this.device.createCommandEncoder(), size) {
+    copyBuffer(name, encoder = this.device.createCommandEncoder(), offset=0, size) {
         const sourceBuff = this.getBuffer(name);
         size = size || sourceBuff.size;
         const copyName = `${name}_copy`;
@@ -74,7 +74,7 @@ export default class GPUConnector {
 
         encoder.copyBufferToBuffer(
             sourceBuff,
-            0,
+            offset,
             this.getBuffer(copyName),
             0,
             size
@@ -117,9 +117,10 @@ export default class GPUConnector {
             // Request the next animation frame and resolve the promise when it is called
             const refreshId = requestAnimationFrame(async (timeStamp) => {
                 try {
-                    const result = await work();
+                    const result = await work(timeStamp);
                     resolve(result || refreshId);
-                } catch {
+                } catch (e) {
+                    console.log(e);
                     reject();
                 }
             });

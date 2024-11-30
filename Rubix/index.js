@@ -2,7 +2,7 @@ import RubixPuzzleDrawer from "./RubixPuzzleDrawer.js";
 import NeuralNetwork from "../NeuralNetwork/NeuralNetwork.js";
 
 const d = new RubixPuzzleDrawer();
-const testNetwork = new NeuralNetwork([3, 2, 2, 1]);
+const testNetwork = new NeuralNetwork([784, 16, 16, 10]);
 
 const X = [
   [0.1, 0.3, 0.7],
@@ -40,44 +40,55 @@ const y = [
 document.addEventListener("DOMContentLoaded", async () =>  {
     d.draw();
 
-    let yPred = await testNetwork.predict(X)
+    // let request = await fetch('./testNumbers.json')
+    // let response = await request.json()
+    
+    
+    // const XT = [];
+    // const YT = [];
+    // const XTE = [];
+    // const YTE = [];
+    // for (let i = 0; i < 2; i++) {
+    //     const key = Object.keys(response[i])[0];
+    //     // if (XT.length == ) break;
+    //     if (i % 2) {
+    //         XT.push(response[i][key]);
+    //         let arr = Array(10).fill(0);
+    //         arr[key] = 1;
+    //         YT.push(arr);
+    //     } else {
+    //         XTE.push(response[i][key]);
+    //         let arr = Array(10).fill(0);
+    //         arr[key] = 1;
+    //         YTE.push(arr);
+    //     }
+    // }
+    // console.log(XT.length, YT)
+    // console.log(XTE.length, YTE)
+    // let yPred = await testNetwork.predict(XTE)
+    // console.log(yPred)
+    // console.log('TestError', NeuralNetwork.meanSquaredError(YTE, yPred))
+    // yPred = await testNetwork.predict(XT)
+    // console.log(yPred)
+    // console.log('TrainError', NeuralNetwork.meanSquaredError(YT, yPred))
+
+    // await testNetwork.train(XT, YT, 10000, 0.7);
+    // yPred = await testNetwork.predict(XTE)
+    // console.log(yPred)
+    // console.log('TESTERROR', NeuralNetwork.meanSquaredError(YTE, yPred));
+    // yPred = await testNetwork.predict(XT)
+    // console.log(yPred)
+    // console.log('TRAINERROR', NeuralNetwork.meanSquaredError(YT, yPred));
+    
+    yPred = await testNetwork.predict(X)
+    console.log(yPred)
+    // console.log(await testNetwork.extractNetworkParameters())
     console.log('ERROR', NeuralNetwork.meanSquaredError(y, yPred));
     await testNetwork.train(X, y, 30000, 0.07, 7)
-    await testNetwork.device.queue.onSubmittedWorkDone()
+    // await testNetwork.device.queue.onSubmittedWorkDone()
     yPred = await testNetwork.predict(X)
     console.log(yPred, y)
     console.log('ERROR', NeuralNetwork.meanSquaredError(y, yPred));
 });
 
 
-// fetch('./testNumbers.json').then(res => res.json())
-// .then(async(data) => {
-//     const XT = [];
-//     const YT = [];
-//     const XTE = [];
-//     const YTE = [];
-//     for (const value of data) {
-//       const key = Object.keys(value)[0];
-//       if (XT.length == 2) break;
-//         if (Math.random() < 0.5) {
-//           XT.push(value[key]);
-//           let arr = Array(10).fill(0);
-//           arr[key] = 1;
-//           YT.push(arr);
-//         } else {
-//           XTE.push(value[key]);
-//           let arr = Array(10).fill(0);
-//           arr[key] = 1;
-//           YTE.push(arr);
-//         }
-//     }
-//     console.log(XT, YT)
-//     console.log(XTE, YTE)
-//     await test.train(XT, YT, 1000, 0.07, 2);
-//     await test.device.queue.onSubmittedWorkDone();
-//     console.timeEnd('train')
-//     let yPred = await test.predict(XTE)
-//     console.log(YTE, yPred)
-//     console.log('ERROR', NeuralNetwork.meanSquaredError(YTE, yPred));
-
-// })

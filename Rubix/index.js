@@ -2,40 +2,68 @@ import RubixPuzzleDrawer from "./RubixPuzzleDrawer.js";
 import NeuralNetwork from "../NeuralNetwork/NeuralNetwork.js";
 
 const d = new RubixPuzzleDrawer();
-const testNetwork = new NeuralNetwork([784, 16, 16, 10]);
+// const testNetwork = new NeuralNetwork([3, 2, 1]);
+// const testNetwork = new NeuralNetwork([256, 128, 64, 10]);
+const testNetwork = new NeuralNetwork([3, 2, 3, 2]);
 
-const X = [
-  [0.1, 0.3, 0.7],
-  [0.2, 0.8, 0.6],
-  [0.4, 0.4, 0.9],
-  [0.3, 0.5, 0.2],
-  [0.7, 0.1, 0.8],
-  [0.6, 0.6, 0.4],
-  [0.8, 0.2, 0.5],
-  [0.5, 0.7, 0.3],
-  [0.2, 0.6, 0.1],
-  [0.1, 0.2, 0.6],
-  [0.9, 0.3, 0.7],
-  [0.3, 0.9, 0.4],
-  [0.7, 0.8, 0.2],
-  [0.8, 0.4, 0.6],
-  [0.6, 0.5, 0.7],
-  [0.4, 0.3, 0.9],
-  [0.5, 0.9, 0.2],
-  [0.9, 0.1, 0.3],
-  [0.2, 0.4, 0.7],
-  [0.7, 0.5, 0.1],
-  [  1,   1,   1],   
+// const X = [
+//   [0.1, 0.3, 0.7],
+//   [0.2, 0.8, 0.6],
+//   [0.4, 0.4, 0.9],
+//   [0.3, 0.5, 0.2],
+//   [0.7, 0.1, 0.8],
+//   [0.6, 0.6, 0.4],
+//   [0.8, 0.2, 0.5],
+//   [0.5, 0.7, 0.3],
+//   [0.2, 0.6, 0.1],
+//   [0.1, 0.2, 0.6],
+//   [0.9, 0.3, 0.7],
+//   [0.3, 0.9, 0.4],
+//   [0.7, 0.8, 0.2],
+//   [0.8, 0.4, 0.6],
+//   [0.6, 0.5, 0.7],
+//   [0.4, 0.3, 0.9],
+//   [0.5, 0.9, 0.2],
+//   [0.9, 0.1, 0.3],
+//   [0.2, 0.4, 0.7],
+//   [0.7, 0.5, 0.1],
+//   [  1,   1,   1],   
+// ]
+// const y = [
+//   [0], [1], [0],
+//   [1], [0], [1],
+//   [0], [1], [0],
+//   [1], [0], [1],
+//   [0], [1], [0],
+//   [1], [0], [1],
+//   [0], [1],
+//   [1],
+// ]
+
+let X = Array.from({length: 21}, () => {
+  return Float32Array.from({length: 256}, () => 13 * Math.random())
+})
+
+
+let y = Array.from({length: 21}, () => {
+
+  let vec  = Uint32Array.from({length: 10}, () => 0)
+  vec[Math.floor(Math.random() * 10)] = 1;
+  return vec;
+})
+
+y = [
+[1,0],
+[0,1],
+[1,0],
+[0,1]
 ]
-const y = [
-  [0], [1], [0],
-  [1], [0], [1],
-  [0], [1], [0],
-  [1], [0], [1],
-  [0], [1], [0],
-  [1], [0], [1],
-  [0], [1], [1],
-]
+
+X = 
+[[0.2,0.1,0.7],
+[0.6,0.1,0.3],
+[0.4,0.3,0.3],
+[0, 0.8, 0.2],]
 
 document.addEventListener("DOMContentLoaded", async () =>  {
     d.draw();
@@ -80,11 +108,11 @@ document.addEventListener("DOMContentLoaded", async () =>  {
     // console.log(yPred)
     // console.log('TRAINERROR', NeuralNetwork.meanSquaredError(YT, yPred));
     
-    yPred = await testNetwork.predict(X)
+    let yPred = await testNetwork.predict(X)
     console.log(yPred)
-    // console.log(await testNetwork.extractNetworkParameters())
+    await testNetwork.train(X, y, 5000, 1, 4)
+    console.log(await testNetwork.extractNetworkParameters())
     console.log('ERROR', NeuralNetwork.meanSquaredError(y, yPred));
-    await testNetwork.train(X, y, 30000, 0.07, 7)
     // await testNetwork.device.queue.onSubmittedWorkDone()
     yPred = await testNetwork.predict(X)
     console.log(yPred, y)

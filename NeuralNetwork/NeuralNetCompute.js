@@ -7,13 +7,17 @@ export const neural_net_shader = (layerSizes, batchSize = 1, learningRate=0.01) 
         a.push(val);
         return a;
     }, [])
+    const layerNeuronCountCumSum = layerSizes.reduce((a, c) => {
+        a.push((a.at(-1) || 0) + c)
+        return a;
+    }, [0])
     return /*wgsl*/`
         struct DV {
             dl_dw: array<array<f32, ${maxLayer}>, ${maxLayer}>,
             dl_dw_final: array<array<f32, ${maxLayer}>, ${maxLayer}>,
             dl_du: array<f32, ${maxLayer}>,
-            dl_do_prev: array<f32, ${maxLayer}>,
             dl_du_final: array<f32, ${maxLayer}>,
+            dl_do_prev: array<f32, ${maxLayer}>,
         }
 
         struct Ouput {
@@ -23,12 +27,13 @@ export const neural_net_shader = (layerSizes, batchSize = 1, learningRate=0.01) 
 
         struct SingletonNeuronData {
             inputs: array<f32, ${totalNeurons}>,
-            biases: array<f32, ${totalNeurons}>
+            biases: array<f32, ${totalNeurons}>,
         }
 
         const layerCount: u32 = ${layerSizes.length};
         const layerSizes = array(${layerSizes.join('u, ')});
         const layerWeightStarts = array(${layerWeightStarts.join('u, ')});
+        const layerCountCum = array(${layerNeuronCountCumSum.join('u, ')});
         const weight = 1f / ${batchSize}f;
         const learnRate = ${learningRate};
 
@@ -40,82 +45,101 @@ export const neural_net_shader = (layerSizes, batchSize = 1, learningRate=0.01) 
         var<storage, read> neuronActivationFuncIds: array<u32, ${totalNeurons}>;
 
         @group(1) @binding(0)
-        var<storage, read> inputLayerNeurons: array<u32>;
+        var<storage, read_write> layerDerivatives: array<DV>;
         @group(1) @binding(1)
-        var<storage, read> outputLayerNeurons: array<u32>;
-        @group(1) @binding(2)
-        var<storage, read_write> derivativesInputLayer: DV;
-        @group(1) @binding(3)
-        var<storage, read_write> derivativesOutputLayer: DV;
-        @group(1) @binding(4)
         var<storage, read_write> outputs: Ouput;
-        @group(1) @binding(5)
+        @group(1) @binding(2)
         var<uniform> networkStep: u32;
-        @group(1) @binding(6)
-        var<uniform> layerIndex: u32;
 
-        @compute @workgroup_size(1)
-        fn main(@builtin(global_invocation_id) global_id : vec3u) {
+        @compute @workgroup_size(${maxLayer})
+        fn main(@builtin(workgroup_id) workgroup_id : vec3<u32>,
+                @builtin(num_workgroups) num_workgroups: vec3<u32>,
+                @builtin(local_invocation_id) local_invocation_id : vec3<u32>) {
+
+                let local_index =  
+                local_invocation_id.x;
 
             switch networkStep {
                 case 0: {
-                    feedFoward(global_id.x);
 
-                    if (layerIndex == layerCount - 1 && global_id.x == 0) {
-                        for (var i: u32 = 0; i < arrayLength(&outputLayerNeurons); i++) {
-                            outputs.network[i] = getActivation(outputLayerNeurons[i]);
+                    for (var i: u32 = 1; i < layerCount; i++) {
+                        if (local_index < layerSizes[i]) {
+                            feedFoward(local_invocation_id.x, i);
+                        }
+                        storageBarrier();
+                    }
+
+                    if (local_index == 0) {
+                        for (var i: u32 = 0; i < layerSizes[layerCount - 1]; i++) {
+                            outputs.network[i] = getActivation(i +  layerCountCum[layerCount - 1]);
                         }
                         d_mse();
                     }
                 }
                 case 1: {
-                    backPropagate();
+                    for (var i: u32 = layerCount - 1; i > 0; i--) {
+                        if (local_index == 0) {
+                            backPropagate(i);
+                        }
+                        storageBarrier();
+                    }
                 }
                 case 2: {
-                    descend(global_id.x);
+
+                    let workgroup_index =  
+                    workgroup_id.x +
+                    workgroup_id.y * num_workgroups.x +
+                    workgroup_id.z * num_workgroups.x * num_workgroups.y;
+
+                    if (local_index < layerSizes[workgroup_index + 1]) {
+                        descend(local_index, workgroup_index + 1);
+                    }
                 } 
                 default {}
             }
         }
 
-        fn feedFoward(outputIndex: u32) {
+        fn feedFoward(outputIndex: u32, layerIndex: u32) {
+            var neuronIndex = outputIndex + layerCountCum[layerIndex];
             var newInput: f32 = 0;
             for (var i: u32 = 0; i < layerSizes[layerIndex - 1]; i++) {
-                newInput += getWeight(outputIndex, i) * getActivation(inputLayerNeurons[i]);
+                newInput += getWeight(outputIndex, i, layerIndex) * getActivation(i + layerCountCum[layerIndex - 1]);
             }
-            singletonNeuronData.inputs[outputLayerNeurons[outputIndex]] = newInput;
+            singletonNeuronData.inputs[neuronIndex] = newInput;
         }
 
-        fn backPropagate() {
+        fn backPropagate(layerIndex: u32) {
             for (var i: u32 = 0; i < layerSizes[layerIndex]; i++) {
-                derivativesInputLayer.dl_du[i] = derivativesOutputLayer.dl_do_prev[i] * getDerivative(outputLayerNeurons[i]);
-                derivativesInputLayer.dl_du_final[i] += derivativesInputLayer.dl_du[i];
+                layerDerivatives[layerIndex - 1].dl_du[i] = layerDerivatives[layerIndex].dl_do_prev[i] * getDerivative(i + layerCountCum[layerIndex]);
+                layerDerivatives[layerIndex - 1].dl_du_final[i] += layerDerivatives[layerIndex - 1].dl_du[i];
                 
                 for (var j: u32 = 0; j < layerSizes[layerIndex - 1]; j++) {
-                    if (i == 0) { derivativesInputLayer.dl_do_prev[j] = 0; }
-                    derivativesInputLayer.dl_dw[i][j] = derivativesInputLayer.dl_du[i] * getActivation(inputLayerNeurons[j]);
-                    derivativesInputLayer.dl_dw_final[i][j] += derivativesInputLayer.dl_dw[i][j];
-                    derivativesInputLayer.dl_do_prev[j] += derivativesInputLayer.dl_du[i] * getWeight(i, j);
+                    if (i == 0) { layerDerivatives[layerIndex - 1].dl_do_prev[j] = 0; }
+                    layerDerivatives[layerIndex - 1].dl_dw[i][j] = layerDerivatives[layerIndex - 1].dl_du[i] * getActivation(j + layerCountCum[layerIndex - 1]);
+                    layerDerivatives[layerIndex - 1].dl_dw_final[i][j] += layerDerivatives[layerIndex - 1].dl_dw[i][j];
+                    layerDerivatives[layerIndex - 1].dl_do_prev[j] += layerDerivatives[layerIndex - 1].dl_du[i] * getWeight(i, j, layerIndex);
                 }
             }
         }
 
-        fn descend(outputIndex: u32) {
-            singletonNeuronData.biases[outputLayerNeurons[outputIndex]] -= weight * derivativesInputLayer.dl_du_final[outputIndex] * learnRate;
-            derivativesInputLayer.dl_du_final[outputIndex] = 0;
+        fn descend(outputIndex: u32, layerIndex: u32) {
+            var neuronIndex = outputIndex + layerCountCum[layerIndex];
+            singletonNeuronData.biases[neuronIndex] -= weight * layerDerivatives[layerIndex - 1].dl_du_final[outputIndex] * learnRate;
+            layerDerivatives[layerIndex - 1].dl_du_final[outputIndex] = 0;
+
 
             for (var j: u32 = 0; j < layerSizes[layerIndex - 1]; j++) {
-                setWeight(outputIndex, j, getWeight(outputIndex, j) - weight * derivativesInputLayer.dl_dw_final[outputIndex][j] * learnRate);
-                derivativesInputLayer.dl_dw_final[outputIndex][j] = 0;
+                setWeight(outputIndex, j, layerIndex, getWeight(outputIndex, j, layerIndex) - weight * layerDerivatives[layerIndex - 1].dl_dw_final[outputIndex][j] * learnRate);
+                layerDerivatives[layerIndex - 1].dl_dw_final[outputIndex][j] = 0;
             }
         }
 
-        fn getWeight(outputIndex: u32, weightIndex: u32) -> f32 {
-            return neuronWeights[(outputLayerNeurons[outputIndex] - outputLayerNeurons[0]) * layerSizes[layerIndex - 1] + weightIndex + layerWeightStarts[layerIndex]];
+        fn getWeight(outputIndex: u32, weightIndex: u32, layerIndex: u32) -> f32 {
+            return neuronWeights[outputIndex * layerSizes[layerIndex - 1] + weightIndex + layerWeightStarts[layerIndex]];
         }
 
-        fn setWeight(outputIndex: u32, weightIndex: u32, val: f32) {
-            neuronWeights[(outputIndex - outputLayerNeurons[0]) * layerSizes[layerIndex - 1] + weightIndex + layerWeightStarts[layerIndex]] = val;
+        fn setWeight(outputIndex: u32, weightIndex: u32, layerIndex: u32, val: f32) {
+            neuronWeights[outputIndex * layerSizes[layerIndex - 1] + weightIndex + layerWeightStarts[layerIndex]] = val;
         }
  
         fn getActivation(neuronIndex: u32) -> f32 {
@@ -170,16 +194,16 @@ export const neural_net_shader = (layerSizes, batchSize = 1, learningRate=0.01) 
 
         fn mse() -> f32 {
             var error = 0f;
-            for (var i: u32 = 0; i < arrayLength(&outputLayerNeurons); i++) {
+            for (var i: u32 = 0; i < layerSizes[layerCount - 1]; i++) {
                 error += pow(outputs.network[i] - outputs.desired[i], 2);
             }
-            return error / f32(arrayLength(&outputLayerNeurons));
+            return error / f32(layerSizes[layerCount - 1]);
         }
 
         fn d_mse() {
-            var len = arrayLength(&outputLayerNeurons);
+            var len = layerSizes[layerCount - 1];
             for (var i: u32 = 0; i < len; i++) {
-                derivativesOutputLayer.dl_do_prev[i] = 2 * (outputs.network[i] - outputs.desired[i]) / f32(len);
+                layerDerivatives[layerCount].dl_do_prev[i] = 2 * (outputs.network[i] - outputs.desired[i]) / f32(len);
             }
         }
     `;

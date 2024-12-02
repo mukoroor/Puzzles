@@ -59,7 +59,7 @@ export default class RubixPuzzleDrawer extends Drawer {
     this.setUpKeyListener(
       (type) => type === "s" && this.puzzle.length > 1,
       () => {
-        this.puzzle.scramble(20, false);
+        this.puzzle.scramble(4, false);
         this.updateFlag = RubixPuzzleDrawer.UPDATE_FLAGS.ROTATION;
       }
     );

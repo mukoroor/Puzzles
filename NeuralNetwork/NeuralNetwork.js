@@ -138,6 +138,13 @@ export default class NeuralNetwork extends GPUConnector {
           binding: 2,
           visibility: GPUShaderStage.COMPUTE,
           buffer: {
+            type: "read-only-storage",
+          },
+        },
+        {
+          binding: 3,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
             type: "uniform",
           },
         },
@@ -205,8 +212,9 @@ export default class NeuralNetwork extends GPUConnector {
     this.createShader("neural_compute", neural_net_shader(this.layers, this.#batchSize));
   }
 
-  createComputePipeline() {
-    return this.device.createComputePipeline({
+  createComputePipelines() {
+    return [
+      this.device.createComputePipeline({
       layout: this.device.createPipelineLayout({
         bindGroupLayouts: [...this.gpuData.bindGroupLayouts],
       }),
@@ -214,7 +222,24 @@ export default class NeuralNetwork extends GPUConnector {
         module: this.getShader("neural_compute"),
         entryPoint: "main",
       },
-    });
+    }),
+    this.device.createComputePipeline({
+      layout: this.device.createPipelineLayout({
+        bindGroupLayouts: [...this.gpuData.bindGroupLayouts],
+      }),
+      compute: {
+        module: this.getShader("neural_compute"),
+        entryPoint: "descent",
+      },
+    }),
+  ];
+  }
+
+  setAllPipelines() {
+    const [main, de] = this.createComputePipelines();
+    
+    this.setPipeline('main', main);
+    this.setPipeline('de', de);
   }
 
   updateDynamicBindGroup() {
@@ -236,6 +261,12 @@ export default class NeuralNetwork extends GPUConnector {
         {
           binding: 2,
           resource: {
+            buffer: this.getBuffer(`Expected_Output_Data`),
+          },
+        },
+        {
+          binding: 3,
+          resource: {
             buffer: this.getBuffer(`Params`),
           },
         },
@@ -248,18 +279,36 @@ export default class NeuralNetwork extends GPUConnector {
     if (!neuronData) {
       neuronData = [
         Array(this.layers[layerIndex]).fill(0),
-        Array.from(
-          { length: this.layers[layerIndex] },
-          () => Math.random() * 2 - 1
-        ),
+        [
+          [0, 0, 0],
+          [0.2756, 0.19],
+          [0.4832, 0.7764, 0.1954],
+          [-0.2534, -0.0331]
+        ][layerIndex],
+        // Array(this.layers[layerIndex]).fill(0),
+        // Array.from(
+        //   { length: this.layers[layerIndex] },
+        //   () => Math.random() * 2 - 1
+        // ),
         // Array(this.layers[layerIndex]).fill(layerIndex ? 1: 0),
-        Array.from(
-          {
-            length:
-              (this.layers[layerIndex - 1] || 0) * this.layers[layerIndex],
-          },
-          () => Math.random() * 2 - 1
-        ),
+        // [
+        //   [],
+        //   [0.1, 0.8, 0.4, 0.6],
+        //   [0.3, 0.9],
+        // ][layerIndex],
+        [
+          [],
+          [0.0946, -0.0547, 0.8358, 0.3976, 0.4530, -0.0605],
+          [0.5110, -0.1045, -0.1461, 0.5256, 0.51, 0.0878],
+          [0.2123, -0.3399, 0.5610, -0.4352, 0.2531, 0.2210],
+        ][layerIndex],
+        // Array.from(
+        //   {
+        //     length:
+        //       (this.layers[layerIndex - 1] || 0) * this.layers[layerIndex],
+        //   },
+        //   () => Math.random() * 2 - 1
+        // ),
         // Array.from({length: (this.layers[layerIndex - 1] || 0) * this.layers[layerIndex]}, () => (1 / this.layers[layerIndex - 1] || 0)),
         Array(this.layers[layerIndex]).fill(layerIndex ? 1 || layerIndex == this.layers.length -1 ? 1: 2 : 0),
       ];
@@ -330,11 +379,16 @@ export default class NeuralNetwork extends GPUConnector {
     this.writeBuffer1to1(`Input_Data`, new Float32Array(points.flat()));
 
     this.createBuffer(
+      `Expected_Output_Data`,
+      Float32Array.BYTES_PER_ELEMENT * points.length * this.layers.at(-1),
+      GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
+    );
+    this.createBuffer(
       `Output_Data`,
       Float32Array.BYTES_PER_ELEMENT * points.length * this.layers.at(-1),
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
     );
-    if (outputs.length) this.writeBuffer1to1(`Output_Data`, new Float32Array(outputs.flat()));
+    if (outputs.length) this.writeBuffer1to1(`Expected_Output_Data`, new Float32Array(outputs.flat()));
   }
 
   neuronCumulativeWeightsCount(stoppingLayerIndex) {
@@ -377,7 +431,7 @@ export default class NeuralNetwork extends GPUConnector {
     this.fillData(points, outputs);
     this.updateDynamicBindGroup();
     this.createComputeShader();
-    this.setPipeline("main", this.createComputePipeline());
+    this.setAllPipelines();
 
     return new Promise((res) => {
       const resolve = async () => {
@@ -398,32 +452,46 @@ export default class NeuralNetwork extends GPUConnector {
     outputs,
     batchSize,
     batchIndex,
-    finish
+    finish,
+    a = []
   ) {
     const start = performance.now();
     while(currEpoch < maxEpoch && (performance.now() - start) <= MAX_TRAINING_INTERRUPT) {
-      // if (currEpoch % 100 == 0) console.log('epoch', currEpoch)
-    // let batchOffset = (currEpoch * batchSize) % points.length;
-    // this.fillTrainingPointData(points[(batchIndex + batchOffset) % points.length], outputs[(batchIndex + batchOffset) % points.length]);
-      this.forward(batchSize);
-      // await this.device.queue.onSubmittedWorkDone();
-      // this.descent();
-    // finish();
-    // this.backward();
-    // if (++batchIndex == batchSize) {
-    //   this.descent();
-    //   batchIndex = 0;
-      currEpoch++;
-    // }
+      // let batchOffset = (currEpoch * batchSize) % points.length;
+    {     
+      const commandEncoder = this.device.createCommandEncoder(); 
+      this.forwardBackwardWave(commandEncoder);
+      this.device.queue.submit([commandEncoder.finish()]);
+    }
+    {     
+      const commandEncoder = this.device.createCommandEncoder(); 
+      this.descent(commandEncoder);
+      this.device.queue.submit([commandEncoder.finish()]);
+    }
+      // this.descent(commandEncoder);
+      
+      if (currEpoch % 1 == 0) {
+        await this.device.queue.onSubmittedWorkDone();
+        let t = await this.extractNetworkOutput();
+        a.push([currEpoch, t, NeuralNetwork.meanSquaredError(outputs, t), await this.extractNetworkParameters()]);
+        // if (a.length >= 2 && a.at(-1)[1] > a.at(-2)[1]) {
+          // console.log(currEpoch);
+          // console.log(a);
+          // finish();
+          // return;
+        // }
+      }
+        currEpoch++;
     }
 
     if (currEpoch == maxEpoch) {
       this.device.queue.onSubmittedWorkDone().then(() => {
         console.timeEnd("train");
+        console.log(a);
       })
       finish();
     }
-    else requestAnimationFrame(() => this.#trainingLoop(currEpoch, maxEpoch, points, outputs, batchSize, batchIndex, finish));
+    else requestAnimationFrame(() => this.#trainingLoop(currEpoch, maxEpoch, points, outputs, batchSize, batchIndex, finish, a));
   }
 
   async extractNetworkParameters() {
@@ -452,7 +520,7 @@ export default class NeuralNetwork extends GPUConnector {
 
     const segDerv = [];
     const size = this.maxLayer * (this.maxLayer + 1)
-    for (let i = 0; i < 2 * this.layers.length; i++) {
+    for (let i = 0; i < this.#batchSize * (this.layers.length - 1); i++) {
       segDerv.push(derv.slice(i * size, (i + 1) * size))
     }
     params.derv = segDerv;
@@ -477,6 +545,7 @@ export default class NeuralNetwork extends GPUConnector {
   }
 
   async extractNetworkOutput() {
+    await this.device.queue.onSubmittedWorkDone();
     const commandEncoder = this.device.createCommandEncoder();
     this.copyBuffer(`Output_Data`, commandEncoder);
     this.device.queue.submit([commandEncoder.finish()]);
@@ -496,44 +565,19 @@ export default class NeuralNetwork extends GPUConnector {
     return separatedOutputs;
   }
 
-  forward(batchSize) {
-    this.writeBuffer(`Network_Step`, 0, new Uint32Array([0]));
-    let commandEncoder = this.device.createCommandEncoder();
-    this.#layerPassForward(commandEncoder, [1])
-    this.device.queue.submit([commandEncoder.finish()]);
-
-  }
-
-  backward() {
-    const commandEncoder = this.device.createCommandEncoder();
-    const passEncoder = commandEncoder.beginComputePass();
-    passEncoder.setPipeline(this.getPipeline("main"));
-    passEncoder.setBindGroup(0, this.gpuData.bindGroups[0]);
-    passEncoder.setBindGroup(1, this.gpuData.bindGroups[1]);
-    passEncoder.setBindGroup(2, this.gpuData.bindGroups[2]);
-    passEncoder.dispatchWorkgroups(1);
-    passEncoder.end();
-    this.device.queue.submit([commandEncoder.finish()]);
-  }
-
-  descent() {
-    // this.device.queue 
-    this.writeBuffer(`Network_Step`, 0, new Uint32Array([1]));
-    const commandEncoder = this.device.createCommandEncoder();
-    const passEncoder = commandEncoder.beginComputePass();
-    passEncoder.setPipeline(this.getPipeline("main"));
-    passEncoder.setBindGroup(0, this.gpuData.bindGroups[0]);
-    passEncoder.setBindGroup(1, this.gpuData.bindGroups[1]);
-    passEncoder.setBindGroup(2, this.gpuData.bindGroups[2]);
-    passEncoder.dispatchWorkgroups(1);
-    passEncoder.end();
-    this.device.queue.submit([commandEncoder.finish()]);
-
-  }
-
-  #layerPassForward(commandEncoder, workgroups = [1]) {
+  forwardBackwardWave(commandEncoder) {
     let passEncoder = commandEncoder.beginComputePass();
     passEncoder.setPipeline(this.getPipeline("main"));
+    passEncoder.setBindGroup(0, this.gpuData.bindGroups[0]);
+    passEncoder.setBindGroup(1, this.gpuData.bindGroups[1]);
+    passEncoder.setBindGroup(2, this.gpuData.bindGroups[2]);
+    passEncoder.dispatchWorkgroups(this.#batchSize);
+    passEncoder.end();
+  }
+
+  descent(commandEncoder) {
+    const passEncoder = commandEncoder.beginComputePass();
+    passEncoder.setPipeline(this.getPipeline("de"));
     passEncoder.setBindGroup(0, this.gpuData.bindGroups[0]);
     passEncoder.setBindGroup(1, this.gpuData.bindGroups[1]);
     passEncoder.setBindGroup(2, this.gpuData.bindGroups[2]);
@@ -542,11 +586,12 @@ export default class NeuralNetwork extends GPUConnector {
   }
 
   async predict(points) {
+    this.#batchSize = points.length;
     this.checkValidDimensions(points);
 
     if (!this.device) {
       await this.init();
-      this.setPipeline("main", this.createComputePipeline());
+      this.setAllPipelines();
     }
 
     return new Promise((res) => {
@@ -555,30 +600,25 @@ export default class NeuralNetwork extends GPUConnector {
   }
 
   async #predictionLoop(points, finish) {
-    // const start = performance.now();
-    // while(pointIndex < points.length && (performance.now() - start) <= MAX_TRAINING_INTERRUPT) {
-    // this.fillTrainingPointData(points[pointIndex++]);
     this.fillParams(1, [1]);
     this.fillData(points);
     this.updateDynamicBindGroup();
-    this.forward(points.length);
-    finish(await this.extractNetworkOutput());
-    // }
 
-    // if (pointIndex == points.length) res(predictions);
-    // else requestAnimationFrame(() => this.#predictionLoop(points, pointIndex, predictions, res));
+    const commandEncoder = this.device.createCommandEncoder();
+    this.forwardBackwardWave(commandEncoder);
+    this.device.queue.submit([commandEncoder.finish()]);
+    
+    finish(await this.extractNetworkOutput());
   }
 
   static meanSquaredError(y, yPred) {
     let error = 0;
     for (let i = 0; i < Math.min(y.length, yPred.length); i++) {
-      let currError = 0;
       for (let j = 0; j < Math.min(y[i].length, yPred[i].length); j++) {
-        currError += ((y[i][j] || 0) - (yPred[i][j] || 0)) ** 2;
+        error += ((y[i][j] || 0) - (yPred[i][j] || 0)) ** 2;
       }
-      error += currError / Math.min(y[i].length, yPred[i].length);
     }
-    return error / Math.min(y.length, yPred.length);
+    return 0.5 * error / Math.min(y.length, yPred.length);
   }
 
   checkValidDimensions(points, outputs = undefined) {
@@ -591,7 +631,7 @@ export default class NeuralNetwork extends GPUConnector {
       throw new Error("invalid data dimensions");
   }
 }
-
+ 
 const MAX_TRAINING_INTERRUPT = 4;
 // function generateExpected(epochs) {
 //   let [input, w1, b1, w2, b2, output] = [1, 1/3, 1, 0.5, 1, 1];

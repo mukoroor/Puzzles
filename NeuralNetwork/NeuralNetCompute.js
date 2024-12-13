@@ -12,12 +12,12 @@ export const neural_net_shader = (layerSizes, batchSize=4) => {
     }, [0])
 
     return /*wgsl*/`
-        alias InputDataPoint = array<f32, ${layerSizes[0]}>;
-        alias OutputDataPoint = array<f32, ${layerSizes.at(-1)}>;
+        alias InputDataPoint = array<f32, inputDims>;
+        alias OutputDataPoint = array<f32, outputDims>;
 
-        alias SlopeOutput = array<f32, ${maxLayer}>;
-        alias SlopeOutputAtomic = array<f32, ${maxLayer}>;
-        alias SlopeOutputWeight = array<SlopeOutputAtomic, ${maxLayer}>;
+        alias SlopeOutput = array<f32, maxLayer>;
+        alias SlopeOutputAtomic = array<f32, maxLayer>;
+        alias SlopeOutputWeight = array<SlopeOutputAtomic, maxLayer>;
 
         alias SingletonValsF32 = array<f32, totalNeurons>;
         alias SingletonValsU32 = array<u32, totalNeurons>;
@@ -46,6 +46,9 @@ export const neural_net_shader = (layerSizes, batchSize=4) => {
             mode: f32,
         }
 
+        const inputDims = ${layerSizes[0]};
+        const outputDims = ${layerSizes.at(-1)};
+
         const layerSizes = array(${layerSizes.join('u, ')});
         const layerWeightStarts = array(${layerWeightStarts.join('u, ')});
         const layerCountCum = array(${layerNeuronCountCumSum.join('u, ')});
@@ -57,10 +60,9 @@ export const neural_net_shader = (layerSizes, batchSize=4) => {
 
         const pointWeight = 1f / f32(batchSize);
 
-        var<workgroup> slopeOutput1: array<SlopeOutput, batchSize>;
-        var<workgroup> slopeOutput2: array<SlopeOutput, batchSize>;
-        var<workgroup> networkOutput: array<OutputDataPoint, batchSize>;
-        var<workgroup> singletonInputs: array<SingletonValsF32, batchSize>;
+        var<workgroup> slopeOutput1: SlopeOutput;
+        var<workgroup> slopeOutput2: SlopeOutput;
+        var<workgroup> singletonInputs: SingletonValsF32;
 
         @group(0) @binding(0)
         var<storage, read_write> singletonNeuronData: SingletonNeuronData;
@@ -81,100 +83,80 @@ export const neural_net_shader = (layerSizes, batchSize=4) => {
         @group(2) @binding(1)
         var<storage, read_write> outputData: array<OutputDataPoint>;
         @group(2) @binding(2)
+        var<storage, read> expectedOutputData: array<OutputDataPoint>;
+        @group(2) @binding(3)
         var<uniform> params: TrainParams;
+        // need to add output buff
         
-        @compute @workgroup_size(batchSize, maxLayer)
-        fn main(@builtin(local_invocation_id) local_invocation_id : vec3<u32>) {
+        @compute @workgroup_size(1)
+        fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
-            let batchIdx =  local_invocation_id.x;
-            let relNeuronIdx = local_invocation_id.y;
-
- 
-            for (var iter: u32 = 0; iter < 1; iter++) {
-                var iterOffset = (iter * batchSize) % arrayLength(&inputData);
-                var dataIdx = (iterOffset + batchIdx) % arrayLength(&inputData);
-
-                if (relNeuronIdx < layerSizes[0]) { 
-                    stageDataPoint(batchIdx, dataIdx, relNeuronIdx);
+            let batchIdx =  id.x;
+            
+            //copy data features into inputs arr
+            for (var i: u32 = 0; i < inputDims; i++) {
+                singletonInputs[i] = inputData[batchIdx][i];
+            }
+            
+            //feed
+            for (var i: u32 = 1; i < layerCount; i++) {
+                for (var j: u32 = 0; j < layerSizes[i]; j++) {
+                    feedFoward(i, j);
                 }
+            }
+            
+            for (var i: u32 = 0; i < outputDims; i++) {
+                calculateOutput(batchIdx, i);
+                calculateLossGradient(batchIdx, i);
+            }
+            if (params.mode == 1) { return; }
 
-                // wait for all points to be staged
-                workgroupBarrier();
-                
-                for (var i: u32 = 1; i < layerCount; i++) {
-                    if (relNeuronIdx < layerSizes[i]) {
-                        feedFoward(batchIdx, relNeuronIdx, i);
-                    }
-                    // wait for all layer neuron inputs to be calculated
-                    workgroupBarrier();
+            var iterCounter: u32 = 0;
+            for (var i: u32 = layerCount - 1; i > 0; i--) {
+                if ((iterCounter & 1) == 0) {
+                    backPropagate(i, batchIdx, &slopeOutput1, &slopeOutput2);
+                } else {
+                    backPropagate(i, batchIdx, &slopeOutput2, &slopeOutput1);
                 }
+                iterCounter++;
+            }
 
-                if (relNeuronIdx < layerSizes[layerCount - 1]) {
-                    calculateOutput(batchIdx, relNeuronIdx);
-                    calculateLossGradient(batchIdx, dataIdx, relNeuronIdx);
-                }
-                 
-                // wait for outputs and gradients to be calculated for batches
-                workgroupBarrier();
-                
-                // copy output over if prediciting
-                if (u32(params.mode) == 1) {                                                                     
-                    outputData[dataIdx][relNeuronIdx] = networkOutput[batchIdx][relNeuronIdx];
-                    continue;
-                }
+        }
 
-                var otherCounter: u32 = 0;
-                for (var i: u32 = layerCount - 1; i > 0; i--) {
-                    if (relNeuronIdx == 0) {
-                        if ((otherCounter & 1) == 0) {
-                            backPropagate(i, batchIdx, &slopeOutput1[batchIdx], &slopeOutput2[batchIdx]);
-                        } else {
-                            backPropagate(i, batchIdx, &slopeOutput2[batchIdx], &slopeOutput1[batchIdx]);
-                        }
-                        otherCounter++;
-                    }
-                    // 
-                    workgroupBarrier();
-                }
+        @compute @workgroup_size(layerCount - 1)
+        fn descent(@builtin(local_invocation_id) local_invocation_id : vec3<u32>) {
+            let layerIdx = local_invocation_id.x + 1;
 
-                for (var i: u32 = 1; i < layerCount; i++) {
-                    if (relNeuronIdx < layerSizes[i]) {
-                        descend(relNeuronIdx,  i);
-                    }
-                    workgroupBarrier();
-                }
+            for (var i: u32 = 0; i < layerSizes[layerIdx]; i++) {
+                descend(i, layerIdx);
             }
         }
 
-        fn stageDataPoint(batchIdx: u32, dataIdx: u32, featureIndex: u32) {
-            singletonInputs[batchIdx][featureIndex] = inputData[dataIdx][featureIndex];
+        fn calculateOutput(dataIdx: u32, relNeuronIdx: u32) {
+            outputData[dataIdx][relNeuronIdx] = getActivation(relNeuronIdx + layerCountCum[layerCount - 1]);
         }
 
-        fn calculateOutput(batchIdx: u32, relNeuronIdx: u32) {
-            networkOutput[batchIdx][relNeuronIdx] = getActivation(batchIdx, relNeuronIdx + layerCountCum[layerCount - 1]);
+        fn calculateLossGradient(dataIdx: u32, relNeuronIdx: u32) {
+            slopeOutput1[relNeuronIdx] = (outputData[dataIdx][relNeuronIdx] - expectedOutputData[dataIdx][relNeuronIdx]);
         }
 
-        fn calculateLossGradient(batchIdx: u32, dataIdx: u32, relNeuronIdx: u32) {
-            slopeOutput1[batchIdx][relNeuronIdx] = 2 * (networkOutput[batchIdx][relNeuronIdx] - outputData[dataIdx][relNeuronIdx]) / f32(layerSizes[layerCount - 1]);
-        }
-
-        fn feedFoward(batchIdx: u32, relNeuronIdx: u32, layerIndex: u32) {
+        fn feedFoward(layerIndex: u32, relNeuronIdx: u32) {
             var neuronID = relNeuronIdx + layerCountCum[layerIndex];
             var newInput: f32 = 0;
             for (var i: u32 = 0; i < layerSizes[layerIndex - 1]; i++) {
-                newInput += getWeight(relNeuronIdx, i, layerIndex) * getActivation(batchIdx, i + layerCountCum[layerIndex - 1]);
+                newInput += getWeight(relNeuronIdx, i, layerIndex) * getActivation(i + layerCountCum[layerIndex - 1]);
             }
-            singletonInputs[batchIdx][neuronID] = newInput;
+            singletonInputs[neuronID] = newInput;
         }
 
         fn backPropagate(layerIndex: u32, batchIdx: u32, dOutputPtr: ptr<workgroup, SlopeOutput>, dOutputPtrNext: ptr<workgroup, SlopeOutput>) {
             for (var i: u32 = 0; i < layerSizes[layerIndex]; i++) {
-                var dl_du_i = (*dOutputPtr)[i] * getDerivative(batchIdx, i + layerCountCum[layerIndex]);
+                var dl_du_i = (*dOutputPtr)[i] * getDerivative(i + layerCountCum[layerIndex]);
                 batchDerivatives[batchIdx][layerIndex - 1].dl_du[i] = dl_du_i;
                 
                 for (var j: u32 = 0; j < layerSizes[layerIndex - 1]; j++) {
                     if (i == 0) { (*dOutputPtrNext)[j] = 0; }
-                    batchDerivatives[batchIdx][layerIndex - 1].dl_dw[i][j] = dl_du_i * getActivation(batchIdx, j + layerCountCum[layerIndex - 1]);
+                    batchDerivatives[batchIdx][layerIndex - 1].dl_dw[i][j] = dl_du_i * getActivation(j + layerCountCum[layerIndex - 1]);
                     (*dOutputPtrNext)[j] += dl_du_i * getWeight(i, j, layerIndex);
                 }
             }
@@ -204,12 +186,12 @@ export const neural_net_shader = (layerSizes, batchSize=4) => {
             neuronWeights[relNeuronIdx * layerSizes[layerIndex - 1] + weightIndex + layerWeightStarts[layerIndex]] = val;
         }
 
-        fn getLinearVal(batchIdx: u32, neuronID: u32) -> f32 {
-            return singletonInputs[batchIdx][neuronID] + singletonNeuronData.biases[neuronID];
+        fn getLinearVal(neuronID: u32) -> f32 {
+            return singletonInputs[neuronID] + singletonNeuronData.biases[neuronID];
         }
  
-        fn getActivation(batchIdx: u32, neuronID: u32) -> f32 {
-            var u = getLinearVal(batchIdx, neuronID);
+        fn getActivation(neuronID: u32) -> f32 {
+            var u = getLinearVal(neuronID);
             switch neuronActivationFuncIds[neuronID] {
                 case 1: {
                     return sigmoid(u);                                                
@@ -223,8 +205,8 @@ export const neural_net_shader = (layerSizes, batchSize=4) => {
             }
         }
 
-        fn getDerivative(batchIdx: u32, neuronID: u32) -> f32 {
-            var u = getLinearVal(batchIdx, neuronID);
+        fn getDerivative(neuronID: u32) -> f32 {
+            var u = getLinearVal(neuronID);
             switch neuronActivationFuncIds[neuronID] {
                 case 1: {
                     return d_sigmoid(u);                                               
@@ -263,7 +245,7 @@ export const neural_net_shader = (layerSizes, batchSize=4) => {
             for (var i: u32 = 0; i < layerSizes[layerCount - 1]; i++) {
                 error += pow(outputs.network[i] - outputs.desired[i], 2);
             }
-            return error / f32(layerSizes[layerCount - 1]);
+            return error / f32(outputDims);
         }
     `;
 }

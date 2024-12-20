@@ -3,7 +3,8 @@ import { neural_net_shader } from "./NeuralNetCompute.js";
 
 export default class NeuralNetwork extends GPUConnector {
   #cumSum;
-  #batchSize = 1;
+  #weightCounts;
+  batchSize = 1;
 
   constructor(layers) {
     super();
@@ -11,10 +12,9 @@ export default class NeuralNetwork extends GPUConnector {
     this.maxLayer = this.layers.reduce((a, c) => Math.max(a, c));
   }
 
-  async init(batchSize = this.#batchSize) {
+  async init() {
     await super.initGPU();
 
-    this.#batchSize = batchSize;
     this.createBuffers();
     this.createBindGroupLayouts();
     this.createBindGroups();
@@ -23,13 +23,6 @@ export default class NeuralNetwork extends GPUConnector {
   }
 
   createBuffers() {
-    this.createBuffer(
-      `Neuron_Inputs&Biases`,
-      Float32Array.BYTES_PER_ELEMENT *
-        this.neuronCumulativeSum(this.layers.length - 1) *
-        2,
-      GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
-    );
     this.createBuffer(
       `Neuron_Weights`,
       Float32Array.BYTES_PER_ELEMENT *
@@ -40,24 +33,13 @@ export default class NeuralNetwork extends GPUConnector {
       `Neuron_Activation_Func_Ids`,
       Uint32Array.BYTES_PER_ELEMENT *
         this.neuronCumulativeSum(this.layers.length - 1),
-      GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+      GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
     );
     this.createBuffer(
       "Batch_Derivatives",
       Float32Array.BYTES_PER_ELEMENT *
-        this.maxLayer *
-        (this.maxLayer + 1) *
-        (this.layers.length - 1) * this.#batchSize,
-      GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
-    );
-    this.createBuffer(
-      `Network_Step`,
-      Uint32Array.BYTES_PER_ELEMENT * 4,
-      GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    );
-    this.createBuffer(
-      `Outputs`,
-      Float32Array.BYTES_PER_ELEMENT * this.layers.at(-1) * 2,
+        this.neuronCumulativeWeightsCount(this.layers.length)
+        * this.batchSize,
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
     );
     this.createBuffer(
@@ -81,13 +63,6 @@ export default class NeuralNetwork extends GPUConnector {
           binding: 1,
           visibility: GPUShaderStage.COMPUTE,
           buffer: {
-            type: "storage",
-          },
-        },
-        {
-          binding: 2,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: {
             type: "read-only-storage",
           },
         },
@@ -104,13 +79,6 @@ export default class NeuralNetwork extends GPUConnector {
         },
         {
           binding: 1,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: {
-            type: "storage",
-          },
-        },
-        {
-          binding: 2,
           visibility: GPUShaderStage.COMPUTE,
           buffer: {
             type: "uniform",
@@ -141,13 +109,6 @@ export default class NeuralNetwork extends GPUConnector {
             type: "read-only-storage",
           },
         },
-        {
-          binding: 3,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: {
-            type: "uniform",
-          },
-        },
       ],
     });
 
@@ -165,17 +126,11 @@ export default class NeuralNetwork extends GPUConnector {
         {
           binding: 0,
           resource: {
-            buffer: this.getBuffer("Neuron_Inputs&Biases"),
-          },
-        },
-        {
-          binding: 1,
-          resource: {
             buffer: this.getBuffer("Neuron_Weights"),
           },
         },
         {
-          binding: 2,
+          binding: 1,
           resource: {
             buffer: this.getBuffer("Neuron_Activation_Func_Ids"),
           },
@@ -194,22 +149,16 @@ export default class NeuralNetwork extends GPUConnector {
         {
           binding: 1,
           resource: {
-            buffer: this.getBuffer(`Outputs`),
+            buffer: this.getBuffer(`Params`),
           },
-        },
-        {
-          binding: 2,
-          resource: {
-            buffer: this.getBuffer(`Network_Step`),
-          },
-        },
+        },        
       ],
     });
     this.gpuData.bindGroups.push(bindGroup0, bindGroup1, undefined);
   }
 
   createComputeShader() {
-    this.createShader("neural_compute", neural_net_shader(this.layers, this.#batchSize));
+    this.createShader("neural_compute", neural_net_shader(this));
   }
 
   createComputePipelines() {
@@ -236,10 +185,10 @@ export default class NeuralNetwork extends GPUConnector {
   }
 
   setAllPipelines() {
-    const [main, de] = this.createComputePipelines();
+    const [fB, descent] = this.createComputePipelines();
     
-    this.setPipeline('main', main);
-    this.setPipeline('de', de);
+    this.setPipeline('forward_backward', fB);
+    this.setPipeline('descent', descent);
   }
 
   updateDynamicBindGroup() {
@@ -264,12 +213,6 @@ export default class NeuralNetwork extends GPUConnector {
             buffer: this.getBuffer(`Expected_Output_Data`),
           },
         },
-        {
-          binding: 3,
-          resource: {
-            buffer: this.getBuffer(`Params`),
-          },
-        },
       ],
     });
     this.gpuData.bindGroups[2] = dynamicBindGroup;
@@ -278,63 +221,31 @@ export default class NeuralNetwork extends GPUConnector {
   fillLayerBuffer(layerIndex, neuronData) {
     if (!neuronData) {
       neuronData = [
-        Array(this.layers[layerIndex]).fill(0),
-        [
-          [0, 0, 0],
-          [0.2756, 0.19],
-          [0.4832, 0.7764, 0.1954],
-          [-0.2534, -0.0331]
-        ][layerIndex],
         // Array(this.layers[layerIndex]).fill(0),
         // Array.from(
         //   { length: this.layers[layerIndex] },
         //   () => Math.random() * 2 - 1
         // ),
         // Array(this.layers[layerIndex]).fill(layerIndex ? 1: 0),
+        Array.from(
+          {
+            length:
+              (this.layers[layerIndex - 1] + 1 || 0) * this.layers[layerIndex],
+          },
+          () => Math.random() * 2 - 1
+        ),
+        // Array.from({length: (this.layers[layerIndex - 1] + 1 || 0) * this.layers[layerIndex]}, () => (1 / this.layers[layerIndex - 1] || 0)),
         // [
         //   [],
-        //   [0.1, 0.8, 0.4, 0.6],
-        //   [0.3, 0.9],
+        //   [...Array(3).fill(1/3), 1, ...Array(3).fill(1/3), 1],
+        //   [0.5, 0.5, 1]
         // ][layerIndex],
-        [
-          [],
-          [0.0946, -0.0547, 0.8358, 0.3976, 0.4530, -0.0605],
-          [0.5110, -0.1045, -0.1461, 0.5256, 0.51, 0.0878],
-          [0.2123, -0.3399, 0.5610, -0.4352, 0.2531, 0.2210],
-        ][layerIndex],
-        // Array.from(
-        //   {
-        //     length:
-        //       (this.layers[layerIndex - 1] || 0) * this.layers[layerIndex],
-        //   },
-        //   () => Math.random() * 2 - 1
-        // ),
-        // Array.from({length: (this.layers[layerIndex - 1] || 0) * this.layers[layerIndex]}, () => (1 / this.layers[layerIndex - 1] || 0)),
-        Array(this.layers[layerIndex]).fill(layerIndex ? 1 || layerIndex == this.layers.length -1 ? 1: 2 : 0),
+        Array.from({ length: this.layers[layerIndex] + (layerIndex == this.layers.length - 1 ? 0 : 1)}, (_, i) => (i != this.layers[layerIndex] ? layerIndex ? 2 : 1 : 0)),
       ];
     }
-    let [inputs, biases, weights, funcIds] = neuronData;
-    const offset = this.neuronCumulativeSum(layerIndex - 1) || 0;
+    let [weights, funcIds] = neuronData;
 
-    if (inputs) {
-      const INPUTS = new Float32Array(inputs);
-      this.writeBuffer(
-        "Neuron_Inputs&Biases",
-        offset * Float32Array.BYTES_PER_ELEMENT,
-        INPUTS
-      );
-    }
-    if (biases) {
-      const BIASES = new Float32Array(biases);
-      this.writeBuffer(
-        "Neuron_Inputs&Biases",
-        Float32Array.BYTES_PER_ELEMENT *
-          this.neuronCumulativeSum(this.layers.length - 1) +
-          offset * Float32Array.BYTES_PER_ELEMENT,
-        BIASES
-      );
-    }
-    if (weights) {
+    if (weights && weights.length) {
       const WEIGHTS = new Float32Array(weights);
       this.writeBuffer(
         "Neuron_Weights",
@@ -343,19 +254,14 @@ export default class NeuralNetwork extends GPUConnector {
         WEIGHTS
       );
     }
-    if (funcIds) {
+    if (funcIds && funcIds.length) {
       const FUNC_IDS = new Uint32Array(funcIds);
       this.writeBuffer(
         "Neuron_Activation_Func_Ids",
-        offset * Uint32Array.BYTES_PER_ELEMENT,
+        (this.neuronCumulativeSum(layerIndex - 1) || 0) * Uint32Array.BYTES_PER_ELEMENT,
         FUNC_IDS
       );
     }
-  }
-
-  fillTrainingPointData(features, output) {
-    this.fillLayerBuffer(0, [features], false);
-    if (output) this.writeBuffer("Outputs", 0, new Float32Array(output));
   }
 
   fillLayerData() {
@@ -377,14 +283,15 @@ export default class NeuralNetwork extends GPUConnector {
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
     );
     this.writeBuffer1to1(`Input_Data`, new Float32Array(points.flat()));
-
+    
     this.createBuffer(
-      `Expected_Output_Data`,
+      `Output_Data`,
       Float32Array.BYTES_PER_ELEMENT * points.length * this.layers.at(-1),
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
     );
+
     this.createBuffer(
-      `Output_Data`,
+      `Expected_Output_Data`,
       Float32Array.BYTES_PER_ELEMENT * points.length * this.layers.at(-1),
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
     );
@@ -392,21 +299,31 @@ export default class NeuralNetwork extends GPUConnector {
   }
 
   neuronCumulativeWeightsCount(stoppingLayerIndex) {
-    return this.layers.reduce(
-      (a, c, i) =>
-        i >= stoppingLayerIndex ? a : a + c * (this.layers[i + 1] || 0),
-      0
-    );
+    return this.weightCounts[stoppingLayerIndex];
   }
 
   neuronCumulativeSum(stoppingLayerIndex) {
+    return this.cumSum[stoppingLayerIndex];
+  }
+
+  get cumSum() {
     if (!this.#cumSum) {
-      this.#cumSum = this.layers.reduce((a, c) => {
-        a.push((a[a.length - 1] || 0) + c);
+      this.#cumSum = this.layers.reduce((a, c, i, arr) => {
+        a.push((a.at(-1) || 0) + c + (arr.at(i + 1) ? 1 : 0))
         return a;
       }, []);
     }
-    return this.#cumSum[stoppingLayerIndex];
+    return this.#cumSum;
+  }
+
+  get weightCounts() {
+    if (!this.#weightCounts) {
+      this.#weightCounts = this.layers.reduce((a, c, i, arr) => {
+        a.push(a.at(-1) + (c + 1) * (arr[i + 1] || 0));
+        return a;
+      }, [0]);
+    }
+    return this.#weightCounts;
   }
 
   async train(
@@ -419,13 +336,13 @@ export default class NeuralNetwork extends GPUConnector {
     this.checkValidDimensions(points, outputs);
     console.time("train");
 
-    if (!this.device) await this.init(batchSize);
+    if (!this.device) await this.init();
 
     this.fillParams(0, [
       learningRate,
       // 0,
       // Math.ceil(points.length / batchSize),
-      // batchSize,
+      batchSize,
       0,
     ]);
     this.fillData(points, outputs);
@@ -458,30 +375,23 @@ export default class NeuralNetwork extends GPUConnector {
     const start = performance.now();
     while(currEpoch < maxEpoch && (performance.now() - start) <= MAX_TRAINING_INTERRUPT) {
       // let batchOffset = (currEpoch * batchSize) % points.length;
-    {     
-      const commandEncoder = this.device.createCommandEncoder(); 
-      this.forwardBackwardWave(commandEncoder);
-      this.device.queue.submit([commandEncoder.finish()]);
-    }
-    {     
-      const commandEncoder = this.device.createCommandEncoder(); 
-      this.descent(commandEncoder);
-      this.device.queue.submit([commandEncoder.finish()]);
-    }
-      // this.descent(commandEncoder);
+      {     
+        const commandEncoder = this.device.createCommandEncoder(); 
+        this.forwardBackwardWave(commandEncoder);
+        this.device.queue.submit([commandEncoder.finish()]);
+      }
+      {     
+        const commandEncoder = this.device.createCommandEncoder(); 
+        this.descent(commandEncoder);
+        this.device.queue.submit([commandEncoder.finish()]);
+      }
       
-      if (currEpoch % 1 == 0) {
+      if (currEpoch % 10 == 0) {
         await this.device.queue.onSubmittedWorkDone();
         let t = await this.extractNetworkOutput();
-        a.push([currEpoch, t, NeuralNetwork.meanSquaredError(outputs, t), await this.extractNetworkParameters()]);
-        // if (a.length >= 2 && a.at(-1)[1] > a.at(-2)[1]) {
-          // console.log(currEpoch);
-          // console.log(a);
-          // finish();
-          // return;
-        // }
+        a.push([currEpoch, NeuralNetwork.meanSquaredError(outputs, t)]);
       }
-        currEpoch++;
+      currEpoch++;
     }
 
     if (currEpoch == maxEpoch) {
@@ -498,29 +408,24 @@ export default class NeuralNetwork extends GPUConnector {
     const params = {};
     const commandEncoder = this.device.createCommandEncoder();
 
-    this.copyBuffer(`Neuron_Inputs&Biases`, commandEncoder);
-    this.copyBuffer(`Neuron_Weights`, commandEncoder);
     this.copyBuffer(`Params`, commandEncoder);
+    this.copyBuffer(`Neuron_Activation_Func_Ids`, commandEncoder);
     this.copyBuffer(`Batch_Derivatives`, commandEncoder);
+    this.copyBuffer(`Neuron_Weights`, commandEncoder);
 
     this.device.queue.submit([commandEncoder.finish()]);
 
-    const tempInpBias = await this.mapBufferToCPU(
-      `Neuron_Inputs&Biases_copy`,
-      Float32Array
-    );
-    params.inputs = tempInpBias.slice(0, tempInpBias.length / 2);
-    params.biases = tempInpBias.slice(tempInpBias.length / 2);
-
     params.params = await this.mapBufferToCPU(`Params_copy`, Float32Array);
+    params.functionIds = await this.mapBufferToCPU(`Neuron_Activation_Func_Ids_copy`, Uint32Array);
+
     const derv = await this.mapBufferToCPU(
         `Batch_Derivatives_copy`,
         Float32Array
     );
 
     const segDerv = [];
-    const size = this.maxLayer * (this.maxLayer + 1)
-    for (let i = 0; i < this.#batchSize * (this.layers.length - 1); i++) {
+    const size = this.neuronCumulativeWeightsCount(this.layers.length);
+    for (let i = 0; i < this.batchSize * (this.layers.length - 1); i++) {
       segDerv.push(derv.slice(i * size, (i + 1) * size))
     }
     params.derv = segDerv;
@@ -530,12 +435,13 @@ export default class NeuralNetwork extends GPUConnector {
       Float32Array
     );
     const segmentedWeights = [];
+
     let pointer = 0;
     for (let i = 0; i < this.layers.length - 1; i++) {
       const weights_i = [];
       for (let j = 0; j < this.layers[i + 1]; j++) {
-        weights_i.push(allWeights.slice(pointer, pointer + this.layers[i]));
-        pointer += this.layers[i];
+        weights_i.push(allWeights.slice(pointer, pointer + this.layers[i] + 1));
+        pointer += this.layers[i] + 1;
       }
       segmentedWeights.push(weights_i);
     }
@@ -543,6 +449,42 @@ export default class NeuralNetwork extends GPUConnector {
 
     return params;
   }
+
+  // async expose(points, ex) {
+  //   const params = await this.extractNetworkParameters();
+  //   const res = await this.extractNetworkOutput();
+  //   const p = []
+
+  //   for (let z = 0; z < points.length; z++) {
+  //     let inputs = points[z];
+  //     let tot = inputs.length;
+  //     // let sum;
+  //     // for (let i = 1; i < this.layers.length; i++) {
+  //     //   const outputs = Array(this.layers[i]);
+  //     //   sum = [...outputs];
+  //     //   for (let j = 0; j < outputs.length; j++) {
+  //     //     outputs[j] = params.biases[tot + j];
+  //     //     for (let k = 0; k < inputs.length; k++) {
+  //     //       outputs[j] += params.weights[i - 1][j][k] * inputs[k];
+  //     //     }
+  //     //     sum[j] = outputs[j];
+  //     //     outputs[j] = sigmoid(sum[j]);
+  //     //   }
+  //     //   tot += outputs.length;
+  //     // }
+  //     inputs = res[z];
+
+  //     let loss = [...inputs];
+  //     let loss_d = [...loss];
+
+  //     for (let i = 0; i < loss.length; i++) {
+  //       loss[i] -= ex[z][i];
+  //       loss_d[i] = loss[i] * dsigmoid(Math.log(loss_d[i]) - Math.log(1 - loss_d[i]))
+  //     }
+  //     p.push({inputs, loss, loss_d});
+  //   }
+  //   return p
+  // }
 
   async extractNetworkOutput() {
     await this.device.queue.onSubmittedWorkDone();
@@ -567,17 +509,17 @@ export default class NeuralNetwork extends GPUConnector {
 
   forwardBackwardWave(commandEncoder) {
     let passEncoder = commandEncoder.beginComputePass();
-    passEncoder.setPipeline(this.getPipeline("main"));
+    passEncoder.setPipeline(this.getPipeline("forward_backward"));
     passEncoder.setBindGroup(0, this.gpuData.bindGroups[0]);
     passEncoder.setBindGroup(1, this.gpuData.bindGroups[1]);
     passEncoder.setBindGroup(2, this.gpuData.bindGroups[2]);
-    passEncoder.dispatchWorkgroups(this.#batchSize);
+    passEncoder.dispatchWorkgroups(this.batchSize);
     passEncoder.end();
   }
 
   descent(commandEncoder) {
     const passEncoder = commandEncoder.beginComputePass();
-    passEncoder.setPipeline(this.getPipeline("de"));
+    passEncoder.setPipeline(this.getPipeline("descent"));
     passEncoder.setBindGroup(0, this.gpuData.bindGroups[0]);
     passEncoder.setBindGroup(1, this.gpuData.bindGroups[1]);
     passEncoder.setBindGroup(2, this.gpuData.bindGroups[2]);
@@ -586,7 +528,7 @@ export default class NeuralNetwork extends GPUConnector {
   }
 
   async predict(points) {
-    this.#batchSize = points.length;
+    this.batchSize = Math.min(points.length, 64);
     this.checkValidDimensions(points);
 
     if (!this.device) {
@@ -600,7 +542,7 @@ export default class NeuralNetwork extends GPUConnector {
   }
 
   async #predictionLoop(points, finish) {
-    this.fillParams(1, [1]);
+    this.fillParams(1, [this.batchSize, 1]);
     this.fillData(points);
     this.updateDynamicBindGroup();
 
@@ -608,7 +550,8 @@ export default class NeuralNetwork extends GPUConnector {
     this.forwardBackwardWave(commandEncoder);
     this.device.queue.submit([commandEncoder.finish()]);
     
-    finish(await this.extractNetworkOutput());
+    const output = (await this.extractNetworkOutput()).slice(0, points.length);
+    finish(output);
   }
 
   static meanSquaredError(y, yPred) {
@@ -618,7 +561,7 @@ export default class NeuralNetwork extends GPUConnector {
         error += ((y[i][j] || 0) - (yPred[i][j] || 0)) ** 2;
       }
     }
-    return 0.5 * error / Math.min(y.length, yPred.length);
+    return error / Math.min(y.length, yPred.length);
   }
 
   checkValidDimensions(points, outputs = undefined) {
@@ -686,4 +629,7 @@ const MAX_TRAINING_INTERRUPT = 4;
 //   return 1 / (1 + Math.exp(-v))
 // }
 
-// let counter = 0
+// function dsigmoid(v) {
+//   return Math.exp(-v) / ((1 + Math.exp(-v)) ** 2)
+// }
+

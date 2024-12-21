@@ -1,6 +1,6 @@
 import RubixPuzzleDrawer from "./RubixPuzzleDrawer.js";
 import NeuralNetwork from "../NeuralNetwork/NeuralNetwork.js";
-import NeuralLayer from "../NeuralNetwork/NeuralLayer.js";
+import NeuralLayer, { LinearLayer, SigmoidLayer } from "../NeuralNetwork/NeuralLayer.js";
 
 const d = new RubixPuzzleDrawer();
 
@@ -72,7 +72,7 @@ const d = new RubixPuzzleDrawer();
 // })
 
 //test 4
-const testNetwork = new NeuralNetwork(NeuralLayer.toLayers([2, 2, 1]));
+const testNetwork = new NeuralNetwork([new LinearLayer(2), new SigmoidLayer(2), new SigmoidLayer(1)]);
 let X = [
   [0, 0],
   [0, 1],
@@ -107,7 +107,7 @@ let y = [
 //     [0.4], 
 //     // [8]
 // ]
-
+console.log((new LinearLayer(2)).activationGenerator())
     
 
 document.addEventListener("DOMContentLoaded", async () =>  {

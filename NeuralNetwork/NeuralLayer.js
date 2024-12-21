@@ -2,7 +2,7 @@ import { ACTIVATIONS } from "./NetworkConsts.js";
 
 export default class NeuralLayer {
     weightsGenerator = () => Math.random();
-    activationGenerator = () => ACTIVATIONS.SIGMOID;
+    activationGenerator = () => ACTIVATIONS.BIAS;
 
 
     constructor(size, { activationGenerator, weightsGenerator, biasWeight } = {}) {
@@ -31,38 +31,23 @@ export default class NeuralLayer {
 }
 
 export class SigmoidLayer extends NeuralLayer {
-    #defAct = () => ACTIVATIONS.SIGMOID;
 
-    constructor(size, options) {
-        super(size, options);
-    }
-
-    get activationGenerator() {
-        return this.#defAct;
+    constructor(size, { weightsGenerator, biasWeight } = {}) {
+        super(size, { activationGenerator: () => ACTIVATIONS.SIGMOID, weightsGenerator, biasWeight });
     }
 }
 
 export class ReluLayer extends NeuralLayer {
-    #defAct = () => ACTIVATIONS.RELU;
 
-    constructor(size, options) {
-        super(size, options);
-    }
-    
-    get activationGenerator() {
-        return this.#defAct;
+    constructor(size, { weightsGenerator, biasWeight } = {}) {
+        super(size, { activationGenerator: () => ACTIVATIONS.RELU, weightsGenerator, biasWeight });
     }
 }
 
 export class LinearLayer extends NeuralLayer {
-    #defAct = () => ACTIVATIONS.LINEAR;
 
-    constructor(size, options) {
-        super(size, options);
-    }
-    
-    get activationGenerator() {
-        return this.#defAct;
+    constructor(size, { weightsGenerator, biasWeight } = {}) {
+        super(size, { activationGenerator: () => ACTIVATIONS.LINEAR, weightsGenerator, biasWeight });
     }
 }
 

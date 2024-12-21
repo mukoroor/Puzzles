@@ -1,6 +1,7 @@
+import { ACTIVATIONS } from "./NetworkConsts.js";
+
 export const neural_net_shader = (network) => {
     const maxLayer = network.maxLayer;
-    // const batchSize = network.batchSize;
     const neuronCountCumSum = [0, ...network.cumSum];
     const weightStarts = [0, ...network.weightCounts];
 
@@ -27,10 +28,10 @@ export const neural_net_shader = (network) => {
             mode: f32,
         }
 
-        const inputDims = ${network.layers[0]};
-        const outputDims = ${network.layers.at(-1)};
+        const inputDims = ${network.layers[0].size};
+        const outputDims = ${network.layers.at(-1).size};
 
-        const layerSizes = array(${network.layers.join('u, ')});
+        const layerSizes = array(${network.layerSizes.join('u, ')});
         const layerWeightStarts = array(${weightStarts.join('u, ')});
         const layerCountCum = array(${neuronCountCumSum.join('u, ')});
         
@@ -42,15 +43,13 @@ export const neural_net_shader = (network) => {
         var<workgroup> singletonInputs: SingletonValsF32;
 
         @group(0) @binding(0)
-        var<storage, read_write> neuronWeights: WeightsArray;
-        @group(0) @binding(1)
-        var<storage, read> neuronActivationFuncIds: SingletonValsU32;
-
-        @group(1) @binding(0)
-        var<storage, read_write> batchDerivatives: array<WeightsArray>;
-        @group(1) @binding(1)
         var<uniform> params: TrainParams;
-
+        
+        @group(1) @binding(0)
+        var<storage, read_write> neuronWeights: WeightsArray;
+        @group(1) @binding(1)
+        var<storage, read> neuronActivationFuncIds: SingletonValsU32;
+        
         @group(2) @binding(0)
         var<storage, read> inputData: array<InputDataPoint>;
         @group(2) @binding(1)
@@ -58,6 +57,9 @@ export const neural_net_shader = (network) => {
         @group(2) @binding(2)
         var<storage, read> expectedOutputData: array<OutputDataPoint>;
         
+        @group(3) @binding(0)
+        var<storage, read_write> batchDerivatives: array<WeightsArray>;
+
         @compute @workgroup_size(1)
         fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
@@ -156,16 +158,16 @@ export const neural_net_shader = (network) => {
         fn getActivation(neuronID: u32) -> f32 {
             var u = singletonInputs[neuronID];
             switch neuronActivationFuncIds[neuronID] {
-                case 0: {
+                case ${ACTIVATIONS.BIAS}: {
                     return 1;
                 }
-                case 1: {
+                case ${ACTIVATIONS.LINEAR}: {
                     return u;
                 }
-                case 2: {
+                case ${ACTIVATIONS.SIGMOID}: {
                     return sigmoid(u);                                                
                 }
-                case 3: {
+                case ${ACTIVATIONS.RELU}: {
                     return relU(u);                                                 
                 }
                 default: {
@@ -177,10 +179,10 @@ export const neural_net_shader = (network) => {
         fn getDerivative(neuronID: u32) -> f32 {
             var u = singletonInputs[neuronID];
             switch neuronActivationFuncIds[neuronID] {
-                case 2: {
+                case ${ACTIVATIONS.SIGMOID}: {
                     return d_sigmoid(u);                                               
                 }
-                case 3: {
+                case ${ACTIVATIONS.RELU}: {
                     return d_relU(u);                                                 
                 }
                 default: {

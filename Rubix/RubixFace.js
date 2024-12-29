@@ -321,8 +321,7 @@ export default class RubixFace {
   scoreDP(arr) {
     // console.time('dp')
     const scoring = Array(6).fill(0);
-    const twoD =
-      arr || this.coloringsArray;
+    const twoD = arr || this.coloringsArray;
 
     let count = 0,
       ids = 1;
@@ -357,7 +356,7 @@ export default class RubixFace {
         }
       }
       idCache = [...idCurr];
-      arrD.push(idCache)
+      arrD.push(idCache);
       // console.log(scoring)
     }
     let tot = scoring.reduce((a, c) => a + c),

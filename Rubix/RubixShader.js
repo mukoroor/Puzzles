@@ -25,7 +25,8 @@ export const UTIL_SHADER = /*wgsl*/ `
     }
 `;
 
-export const frag_vert_shader = /*wgsl*/ `
+export const frag_vert_shader =
+  /*wgsl*/ `
     @binding(0) @group(0) var<storage, read> pieceColoring: array<array<u32, 6>>;
     @binding(1) @group(0) var<storage, read> piecePositions: array<vec4f>;
     @binding(2) @group(0) var<storage, read> pieceIsRotating: array<u32>;

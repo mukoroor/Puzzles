@@ -3,7 +3,7 @@ import { move_eval_shader } from "./MoveEvalShader.js";
 
 export default class RubixMoveEvaluator extends GPUConnector {
   #moves;
-  #faceDimension
+  #faceDimension;
   constructor() {
     super();
   }
@@ -13,7 +13,8 @@ export default class RubixMoveEvaluator extends GPUConnector {
   }
 
   get moves() {
-    if (this.#moves && this.#moves.length == 12 * this.faceDimension) return this.#moves;
+    if (this.#moves && this.#moves.length == 12 * this.faceDimension)
+      return this.#moves;
     const moves = [
       [0, 0, 0], // do nothing
     ];
@@ -48,8 +49,9 @@ export default class RubixMoveEvaluator extends GPUConnector {
   #createBindBuffers() {
     this.createBuffer(
       "face_colorings",
-      Math.ceil((3 * 6 * this.colorsPerFace) / (8 * Uint32Array.BYTES_PER_ELEMENT)) *
-      Uint32Array.BYTES_PER_ELEMENT,
+      Math.ceil(
+        (3 * 6 * this.colorsPerFace) / (8 * Uint32Array.BYTES_PER_ELEMENT)
+      ) * Uint32Array.BYTES_PER_ELEMENT,
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
     );
     this.#createOutputBuffers(1);
@@ -59,19 +61,19 @@ export default class RubixMoveEvaluator extends GPUConnector {
     this.createBuffer(
       "cube_colorings_output",
       faceColoringsInstanceCount *
-      Math.ceil(
-        (this.moves.length * 3 * 6 * this.colorsPerFace) /
-        (8 * Uint32Array.BYTES_PER_ELEMENT)
-      ) *
-      Uint32Array.BYTES_PER_ELEMENT,
+        Math.ceil(
+          (this.moves.length * 3 * 6 * this.colorsPerFace) /
+            (8 * Uint32Array.BYTES_PER_ELEMENT)
+        ) *
+        Uint32Array.BYTES_PER_ELEMENT,
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
     );
     this.createBuffer(
       "score_output",
       faceColoringsInstanceCount *
-      this.moves.length *
-      Float32Array.BYTES_PER_ELEMENT *
-      6,
+        this.moves.length *
+        Float32Array.BYTES_PER_ELEMENT *
+        6,
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
     );
   }
@@ -173,23 +175,27 @@ export default class RubixMoveEvaluator extends GPUConnector {
     this.faceDimension = faceColorings[0].length;
     this.#createBindBuffers();
     this.setPipeline("compute_scoring", this.#createComputePipeline());
-    this.#updateFaceColoringsBuffer(segmentString(
-      faceColorings
-        .map((e) => RubixMoveEvaluator.toBinary(e))
-        .reverse()
-        .join(""),
-      32
-    ).map((e) => parseInt(e, 2)));
+    this.#updateFaceColoringsBuffer(
+      segmentString(
+        faceColorings
+          .map((e) => RubixMoveEvaluator.toBinary(e))
+          .reverse()
+          .join(""),
+        32
+      ).map((e) => parseInt(e, 2))
+    );
 
     const [scores, generation] = await this.#calcPermutations(generations);
     // console.log(c)
-    
+
     console.timeEnd("gpcmp_score");
-    const {maxI, ..._} = getMaxSubArr(scores);
+    const { maxI, ..._ } = getMaxSubArr(scores);
     // console.log(scores[maxI])
-    const puzzleState = await this.extractPermutation(maxI)
+    const puzzleState = await this.extractPermutation(maxI);
     const moveIndices = this.#scoreIndexToMoveIndices(maxI, generations);
-    const moves = moveIndices.map(i => RubixMoveEvaluator.convertMoveToRubixFormat(this.moves[i]));
+    const moves = moveIndices.map((i) =>
+      RubixMoveEvaluator.convertMoveToRubixFormat(this.moves[i])
+    );
     // console.log(maxI)
     // console.log(moves)
     return { maxI, ..._, moveIndices, moves, generation, puzzleState };
@@ -198,18 +204,30 @@ export default class RubixMoveEvaluator extends GPUConnector {
   async extractPermutation(permutationIndex) {
     const faceSize = this.colorsPerFace;
     const U32_BITS = 8 * Uint32Array.BYTES_PER_ELEMENT;
-    const sizeUint32 = 3 * 6 * faceSize / (U32_BITS);
-    const strBitOff = permutationIndex * sizeUint32 ;
+    const sizeUint32 = (3 * 6 * faceSize) / U32_BITS;
+    const strBitOff = permutationIndex * sizeUint32;
     const offsetBytes = Math.floor(strBitOff) * Uint32Array.BYTES_PER_ELEMENT;
     const offsetExtra = offsetBytes % 8 ? 4 : 0;
 
-    const perm = await this.mapBufferToCPU("cube_colorings_output_copy", Uint32Array, offsetBytes - offsetExtra, 2 * Math.ceil(sizeUint32) * Uint32Array.BYTES_PER_ELEMENT + offsetExtra);
+    const perm = await this.mapBufferToCPU(
+      "cube_colorings_output_copy",
+      Uint32Array,
+      offsetBytes - offsetExtra,
+      2 * Math.ceil(sizeUint32) * Uint32Array.BYTES_PER_ELEMENT + offsetExtra
+    );
 
-    let s = Array.from(perm).map(num => num.toString(2).padStart(U32_BITS, '0'))
+    let s = Array.from(perm).map((num) =>
+      num.toString(2).padStart(U32_BITS, "0")
+    );
     if (offsetExtra) s.shift();
-    s[0] = s[0].slice(-U32_BITS, -(strBitOff * U32_BITS) % (U32_BITS) || undefined)
+    s[0] = s[0].slice(
+      -U32_BITS,
+      -(strBitOff * U32_BITS) % U32_BITS || undefined
+    );
 
-    let parsed = segmentString(s.reverse().join(''), 3).map(e => parseInt(e, 2));
+    let parsed = segmentString(s.reverse().join(""), 3).map((e) =>
+      parseInt(e, 2)
+    );
     let twoD = [];
     for (let i = 0; i < 6; i++) {
       let face = [];
@@ -219,7 +237,7 @@ export default class RubixMoveEvaluator extends GPUConnector {
       }
       twoD.push(face);
     }
-    return twoD
+    return twoD;
   }
 
   async #calcPermutations(generations) {
@@ -282,24 +300,31 @@ export default class RubixMoveEvaluator extends GPUConnector {
           //   return array2D;
           //   // return parsed;
           // }),
-          currGeneration
-        ])
+          currGeneration,
+        ]);
       }
-    }
-    return await GPUConnector.waitForAnimationFrame(calcGeneration)
+    };
+    return await GPUConnector.waitForAnimationFrame(calcGeneration);
   }
 
   static convertMoveToRubixFormat(move) {
-    return [move[0], move[1], ...(move[2] > 2 ? ['cw', 4 - move[2]] : ['ccw', move[2]])];
+    return [
+      move[0],
+      move[1],
+      ...(move[2] > 2 ? ["cw", 4 - move[2]] : ["ccw", move[2]]),
+    ];
   }
 
   #scoreIndexToMoveIndices(index, generations) {
-    const moveLen = this.moves.length, indices = [];
-    let val = index, divisorCurr = moveLen, divisorPrev = 1;
+    const moveLen = this.moves.length,
+      indices = [];
+    let val = index,
+      divisorCurr = moveLen,
+      divisorPrev = 1;
     for (let _ = 0; _ < generations; _++) {
       indices.unshift((val % divisorCurr) / divisorPrev);
       val -= indices[0] * divisorPrev;
-      divisorPrev = divisorCurr
+      divisorPrev = divisorCurr;
       divisorCurr *= moveLen;
     }
     return indices;
@@ -309,11 +334,12 @@ export default class RubixMoveEvaluator extends GPUConnector {
     const count =
       Math.ceil(
         (this.moves.length * 3 * 6 * this.colorsPerFace) /
-        (8 * Uint32Array.BYTES_PER_ELEMENT)
+          (8 * Uint32Array.BYTES_PER_ELEMENT)
       ) * Uint32Array.BYTES_PER_ELEMENT;
     const nextFaceColorings = this.getBuffer("cube_colorings_output");
     this.#createOutputBuffers(
-      (this.moves.length * nextFaceColorings.size) / count);
+      (this.moves.length * nextFaceColorings.size) / count
+    );
     this.setBuffer("face_colorings", nextFaceColorings);
   }
 }
@@ -321,16 +347,17 @@ export default class RubixMoveEvaluator extends GPUConnector {
 //util will relocate
 function segmentString(str, len = 3) {
   var chunks = [];
-  
+
   for (var i = str.length; i > 0; i -= len) {
     chunks.push(str.substring(i - len, i));
   }
-  
+
   return chunks;
 }
 //util will relocate
 function getMaxSubArr(arr) {
-  let max = 0, maxI = -1;
+  let max = 0,
+    maxI = -1;
   for (let i = 0; i < arr.length; i++) {
     const currVal = arr[i].reduce((a, c) => a + c);
     if (currVal > max) {

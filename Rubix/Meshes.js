@@ -1,5 +1,4 @@
-export const ROUNDED_SQUARE_VERTICES =
-[
+export const ROUNDED_SQUARE_VERTICES = [
   [-0.35, -0.5, 0.35],
   [-0.35, -0.35, 0.5],
   [-0.5, -0.35, 0.35],
@@ -154,7 +153,7 @@ export const ROUNDED_SQUARE_VERTICES =
   [0.405856, 0.448438, -0.448438],
 ];
 // [
-  
+
 //   [-0.5, 0.5, 0.5],
 //   [0.5, 0.5, 0.5],
 //   [-0.5, 0.5, -0.5],
@@ -170,8 +169,7 @@ export const ROUNDED_SQUARE_VERTICES =
 //   [0.5, -0.5, -0.72],
 //   [-0.5, 0.5, -0.72],
 // ]
-export const ROUNDED_SQUARE_INDICES = 
-[
+export const ROUNDED_SQUARE_INDICES = [
   [57, 95, 133],
   [57, 20, 95],
   [58, 135, 115],

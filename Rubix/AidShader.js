@@ -1,6 +1,7 @@
 import { UTIL_SHADER } from "./RubixShader.js";
 
-export const frag_vert_aid_shader = /*wgsl*/ `
+export const frag_vert_aid_shader =
+  /*wgsl*/ `
     diagnostic(off,derivative_uniformity);
 
     @binding(0) @group(0) var<storage, read> renderState: RubixRenderState;

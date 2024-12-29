@@ -1,8 +1,8 @@
-const CUBE_MOVE_STRUCT_NAME = 'CubeMove';
+const CUBE_MOVE_STRUCT_NAME = "CubeMove";
 export const move_eval_shader = (cubeDim, moves) => {
-    const movesCount = moves.length;
-    const movesString = movesToString(moves);
-    return /*wgsl*/ `
+  const movesCount = moves.length;
+  const movesString = movesToString(moves);
+  return /*wgsl*/ `
         const adj = array<array<u32, 4>, 3>(
             array(1, 2, 4, 3),
             array(0, 3, 5, 2),
@@ -235,10 +235,12 @@ export const move_eval_shader = (cubeDim, moves) => {
             }
         }
     `;
-}
+};
 
 function movesToString(moves) {
-    return moves.map(e => {
-        return `${CUBE_MOVE_STRUCT_NAME}(${e.join(',')})`
-    }).join(', ')
+  return moves
+    .map((e) => {
+      return `${CUBE_MOVE_STRUCT_NAME}(${e.join(",")})`;
+    })
+    .join(", ");
 }

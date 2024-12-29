@@ -54,7 +54,7 @@ export default class RubixPiece {
   }
 
   getDeepPiece(face, depth) {
-    if (typeof this.getFace(face) === 'number') return null;
+    if (typeof this.getFace(face) === "number") return null;
     let pointer = this;
     for (let i = 0; i < depth; i++) {
       pointer = pointer.getFace(face);
@@ -81,7 +81,7 @@ export default class RubixPiece {
   }
 
   toStringSimple() {
-    return `{${this.id}}${this.type}`
+    return `{${this.id}}${this.type}`;
   }
 
   static join(pieceA, pieceB, faceA, faceB) {

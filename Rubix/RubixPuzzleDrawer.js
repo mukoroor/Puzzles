@@ -53,7 +53,7 @@ export default class RubixPuzzleDrawer extends Drawer {
     this.setUpKeyListener(
       (type) => type === "y",
       async () => {
-        console.log(await this.#reccomend())
+        console.log(await this.#reccomend());
       }
     );
     this.setUpKeyListener(
@@ -814,7 +814,7 @@ export default class RubixPuzzleDrawer extends Drawer {
     this.#performMoves(moves, false);
   }
 
-  #performMoves(moves, onComplete = () => {}, store=true, timeout=300) {
+  #performMoves(moves, onComplete = () => {}, store = true, timeout = 300) {
     let index = 0;
     const interval = setInterval(() => {
       if (this.updateFlag != Drawer.UPDATE_FLAGS.IDLE) return;
@@ -823,39 +823,45 @@ export default class RubixPuzzleDrawer extends Drawer {
         onComplete();
         return;
       }
-      const move = [...moves[index++], store]
+      const move = [...moves[index++], store];
       this.movementData = move;
       this.#startInterpolation();
     }, timeout);
   }
 
-  async #reccomend(generations=2, faceColorings = this.puzzle.faces.map(face => face.coloringsArray)) {
+  async #reccomend(
+    generations = 2,
+    faceColorings = this.puzzle.faces.map((face) => face.coloringsArray)
+  ) {
     if (this.puzzle.length == 1) return;
     if (!this.evaluator.device) await this.evaluator.init();
     return await this.evaluator.evaluate(generations, faceColorings);
   }
 
-  async #naiveSolve(maxGenerations=1, maxIters=300) {
+  async #naiveSolve(maxGenerations = 1, maxIters = 300) {
     if (this.puzzle.length == 1) return;
     let iter = 0;
     const solveMoves = [];
     let colorings;
-    let finish = false
+    let finish = false;
 
-    while(iter < maxIters && !finish) {
-      const {moves, puzzleState} = await this.#reccomend(maxGenerations, colorings);
+    while (iter < maxIters && !finish) {
+      const { moves, puzzleState } = await this.#reccomend(
+        maxGenerations,
+        colorings
+      );
       colorings = puzzleState;
-      moves.forEach(move => {
+      moves.forEach((move) => {
         if (arraysAreEqual(move, DO_NOTHING_MOVE)) finish = true;
         else {
           solveMoves.push(move);
           iter++;
         }
-      })
+      });
     }
 
-    console.log(this.puzzle.scores())
-    console.log(iter, solveMoves)
+    console.log(this.puzzle.scores());
+    console.log(iter, solveMoves);
     this.#performMoves(solveMoves, () => console.log(this.puzzle.scores()));
   }
 }
@@ -863,11 +869,10 @@ export default class RubixPuzzleDrawer extends Drawer {
 //util
 function arraysAreEqual(arr1, arr2) {
   if (arr1.length !== arr2.length) return false;
-  
+
   for (let i = 0; i < arr1.length; i++) {
     if (arr1[i] !== arr2[i]) return false;
   }
 
   return true;
 }
-

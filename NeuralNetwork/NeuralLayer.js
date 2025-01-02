@@ -1,12 +1,30 @@
 import WGSLActivationContainer from "./ActivationFunctions.js";
 
-export default class NeuralLayer {
+class NeuralLayer {
+  weightsGenerator = () => Math.random();
+
+  constructor() {}
+
+  static toLayers(layerSizes) {
+    return layerSizes.map((e, i, arr) => {
+      if (!i) {
+        return new LinearLayer(e);
+      } else {
+        return new SigmoidLayer(e, { isTerminal: (i == arr.length - 1) })
+      }
+    })
+  }
+}
+
+
+export default class ActivationLayer extends NeuralLayer {
   weightsGenerator = () => Math.random();
   activationGenerator = () => WGSLActivationContainer.getActivationId("DROPOUT");
   hasBias = true;
   isTerminal = false;
 
   constructor(size, options = {}) {
+    super();
     const {
       activationGenerator,
       weightsGenerator,
@@ -43,33 +61,29 @@ export default class NeuralLayer {
 
     return [weights, activationFunctions];
   }
-
-  static toLayers(layerSizes) {
-    return layerSizes.map((e, i, arr) => {
-      if (!i) {
-        return new LinearLayer(e);
-      } else {
-        return new NeuralLayer(e, { activationGenerator: () => WGSLActivationContainer.getActivationId("LeakyReLU"), isTerminal: (i == arr.length - 1) })
-      }
-    })
-  }
 }
 
-export class SigmoidLayer extends NeuralLayer {
+export class SigmoidLayer extends ActivationLayer {
   constructor(size, options = {}) {
-    super(size, { ...options, activationGenerator: () => WGSLActivationContainer.getActivationId("SIGMOID"), weightsGenerator: (inSize) => (Math.random() * 2 - 1) / Math.sqrt(inSize) });
+    super(size, { weightsGenerator: (inSize) => (Math.random() * 2 - 1) / Math.sqrt(inSize), ...options, activationGenerator: () => WGSLActivationContainer.getActivationId("SIGMOID") });
   }
 }
 
-export class ReluLayer extends NeuralLayer {
+export class ReluLayer extends ActivationLayer {
   constructor(size, options = {}) {
     super(size, { ...options, activationGenerator: () => WGSLActivationContainer.getActivationId("ReLU") });
   }
 }
 
-export class LinearLayer extends NeuralLayer {
+export class LinearLayer extends ActivationLayer {
   constructor(size, options = {}) {
     super(size, { ...options, activationGenerator: () => WGSLActivationContainer.getActivationId("LINEAR") });
+  }
+}
+
+export class ConvolutionLayer extends NeuralLayer {
+  constructor ([kernelSizeX, kernelSizeY], kernel) {
+    super();
   }
 }
 

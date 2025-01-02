@@ -3,7 +3,7 @@ import { NETWORK_MODE } from "./NetworkConsts.js";
 
 export const neural_net_shader = (network) => {
   const maxLayer = network.maxLayer;
-  const neuronCountCumSum = [0, ...network.cumSum];
+  const neuronCountCumSum = [0, ...network.cumulativeSum];
   const weightStarts = [0, ...network.weightCounts];
   const { activations, derivatives, activationSwitch, derivativeSwitch } = WGSLActivations.createActivationShaderCode();
 
@@ -30,7 +30,7 @@ export const neural_net_shader = (network) => {
         struct TrainParams {
             learningRate: f32,
             dataOffset: f32,
-            propagateIterations: f32,
+            lossFunc: f32,
             batchSize: f32,
             mode: f32,
         }
@@ -43,11 +43,15 @@ export const neural_net_shader = (network) => {
         const layerCountCum = array(${neuronCountCumSum.join("u, ")});
         
         const maxLayer = ${maxLayer};
+        const workGroupSize = min(256,  maxLayer);
+        const signalsPerWorkgroup = maxLayer / workGroupSize;
         const layerCount: u32 = ${network.layers.length};
         const totalWeights: u32 = layerWeightStarts[layerCount];
         const totalNeurons: u32 = layerCountCum[layerCount];
 
         var<workgroup> singletonInputs: SingletonValsF32;
+        var<workgroup> slopeOutputCurr: SlopeOutput;
+        var<workgroup> slopeOutputNext: SlopeOutput;
 
         @group(0) @binding(0)
         var<storage, read_write> params: TrainParams;
@@ -66,119 +70,90 @@ export const neural_net_shader = (network) => {
         
         @group(3) @binding(0)
         var<storage, read_write> batchDerivatives: array<WeightsArray>;
+        @group(3) @binding(1)
+        var<storage, read_write> neuronInput: array<SingletonValsF32>;
 
-        @compute @workgroup_size(1)
-        fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+        @compute @workgroup_size(workGroupSize)
+        fn main(@builtin(workgroup_id) workgroup_id : vec3<u32>, @builtin(local_invocation_id) id : vec3<u32>) {
+            let dataIdx = (workgroup_id.x + u32(params.dataOffset)) % arrayLength(&inputData);
+            let relNeuronIdx = id.x * signalsPerWorkgroup;
 
-            let batchIdx = id.x;
-            let trainCount = arrayLength(&inputData);
-            let isPredict = params.mode == ${NETWORK_MODE.PREDICT};
-            
-            if (batchIdx >= trainCount) { return; }
-            
-            let dispatchBatchSize = u32(ceil(f32(trainCount) / params.propagateIterations));
-            
-            for (var propIter: u32 = 0; propIter < u32(select(ceil(params.propagateIterations), 1, isPredict)); propIter++) {
+            for (var i: u32 = 0; i < layerCount; i++) {
+                for (var signal: u32 = 0; signal < signalsPerWorkgroup; signal++) {
+                    var sigIdx = signal + relNeuronIdx;
 
-                let dataIdx = select((batchIdx + u32(params.dataOffset) + dispatchBatchSize * propIter) % trainCount, batchIdx, isPredict);
-
-                if (dataIdx < dispatchBatchSize && propIter > 0) { break; }
-
-                //copy data features into inputs arr
-                for (var i: u32 = 0; i < inputDims; i++) {
-                    singletonInputs[i] = inputData[dataIdx][i];
-                }
-                
-                //feed
-                for (var i: u32 = 1; i < layerCount; i++) {
-                    for (var j: u32 = 0; j < layerSizes[i]; j++) {
-                        feedFoward(i, j);
+                    if (sigIdx > layerSizes[i]) { continue; }
+                    
+                    if (i == 0) {
+                        singletonInputs[sigIdx] = inputData[dataIdx][sigIdx];
+                        continue;
+                    } else {
+                        feedFoward(i, sigIdx);
                     }
-                }
-                
-                var slopeOutput = SlopeOutput();
-                for (var i: u32 = 0; i < outputDims; i++) {
-                    calculateOutput(dataIdx, i);
-                    // slopeOutput[i] = calculateLossGradient(dataIdx, i);
-                }
-                softmax(dataIdx);
-                for (var i: u32 = 0; i < outputDims; i++) {
-                    // calculateOutput(dataIdx, i);
-                    slopeOutput[i] = calculateLossGradient(dataIdx, i);
-                    // slopeOutput[i] = 1;
-                    // outputData[dataIdx][i] = expectedOutputData[dataIdx][i];
-                    // outputData[dataIdx][i] = 12345.1;
-                }
-    
-                // for (var i: u32 = 0; i < totalNeurons; i++) {
-                //     singletonNeuronData.inputs[i] = singletonInputs[i];
-                // }
-    
-                if (isPredict) { return; }
-    
-                for (var i: u32 = layerCount - 1; i > 0; i--) {
-                    slopeOutput = backPropagate(i, batchIdx, &slopeOutput, propIter);
-                }
 
+                    if (i == layerCount - 1) { calculateOutput(dataIdx, sigIdx); }
+                }
+                workgroupBarrier();
             }
+
+            if (u32(params.mode) == ${NETWORK_MODE.TRAIN}) { neuronInput[dataIdx] = singletonInputs; }
         }
 
-        @compute @workgroup_size(layerCount - 1)
-        fn backward(@builtin(local_invocation_id) local_invocation_id : vec3<u32>) {
-            let layerIdx = local_invocation_id.x + 1;
+        @compute @workgroup_size(workGroupSize)
+        fn backward(@builtin(workgroup_id) workgroup_id : vec3<u32>,  @builtin(local_invocation_id) id : vec3<u32>) {
+            let batchIdx = workgroup_id.x;
+            let dataIdx = (batchIdx + u32(params.dataOffset)) % arrayLength(&inputData);
+            let relNeuronIdx = id.x * signalsPerWorkgroup;
 
+            singletonInputs = neuronInput[dataIdx];
+
+            for (var i: u32 = 0; i < signalsPerWorkgroup; i++) {
+                var sigIdx = i + relNeuronIdx;
+
+                if (sigIdx > outputDims) { continue; }
+
+                slopeOutputCurr[sigIdx] = calculateLossGradient(dataIdx, sigIdx) * getDerivative(sigIdx + layerCountCum[layerCount - 1]);
+            }
+            workgroupBarrier();
+
+            for (var i: u32 = layerCount - 1; i > 0; i--) {
+                for (var signal: u32 = 0; signal < signalsPerWorkgroup; signal++) {
+                    var sigIdx = signal + relNeuronIdx;
+                    
+                    if (sigIdx > layerSizes[i - 1] + 1) { continue; }
+
+                    var activation = getActivation(sigIdx + layerCountCum[i - 1]);
+                    
+                    for (var source: u32 = 0; source < layerSizes[i]; source++) {
+                        var weightIndex = getWeightsStartIndex(source, i) + sigIdx;
+                        slopeOutputNext[sigIdx] += slopeOutputCurr[source] * neuronWeights[weightIndex];
+
+                        if (params.dataOffset == 0) {
+                            batchDerivatives[dataIdx][weightIndex] = slopeOutputCurr[source] * activation;
+                        } else {
+                            batchDerivatives[dataIdx][weightIndex] += slopeOutputCurr[source] * activation;
+                        }
+                    }
+                }
+                workgroupBarrier();
+
+                for (var signal: u32 = 0; signal < signalsPerWorkgroup; signal++) {
+                    var sigIdx = signal + relNeuronIdx;
+                    slopeOutputCurr[sigIdx] = slopeOutputNext[sigIdx] * getDerivative(sigIdx + layerCountCum[i - 1]);
+                    slopeOutputNext[sigIdx] = 0;
+                }
+            }
+
+            if (workgroup_id.x == 0 && id.x == 0) { 
+                params.dataOffset += params.batchSize;
+                if (u32(params.dataOffset) >= arrayLength(&inputData))  { params.dataOffset = 0; }
+            }
         }
 
         @compute @workgroup_size(layerCount - 1)
         fn descent(@builtin(local_invocation_id) local_invocation_id : vec3<u32>) {
             let layerIdx = local_invocation_id.x + 1;
             descendWeights(layerIdx);
-
-            if (layerIdx == 1){
-                params.dataOffset += params.batchSize;
-                if (u32(params.dataOffset) >= arrayLength(&inputData)) {
-                    params.dataOffset = 0;
-                }
-            }
-        }
-
-        fn maxOutput(dataIdx: u32) -> MaxContainer {
-            var out: MaxContainer;
-            for (var i: u32 = 0; i < outputDims; i++) {
-                if (i == 0 || out.val < outputData[dataIdx][i]){
-                    out.val = outputData[dataIdx][i];
-                    out.index = i;
-                }
-            }
-            return out;
-        }
-
-        fn softmax(dataIdx: u32) { 
-            var max = maxOutput(dataIdx).val;
-            var divisor = 0f;
-            for (var i: u32 = 0; i < outputDims; i++) {
-                outputData[dataIdx][i] = exp(outputData[dataIdx][i] - max);
-                divisor += outputData[dataIdx][i];
-            }
-            for (var i: u32 = 0; i < outputDims; i++) {
-                outputData[dataIdx][i] /= divisor;
-            }
-        }
-
-        fn mse(dataIdx: u32) -> f32 {
-            var error = 0f;
-            for (var i: u32 = 0; i < outputDims; i++) {
-                error += pow(outputData[dataIdx][i] - expectedOutputData[dataIdx][i], 2);
-            }
-            return error / f32(outputDims);
-        }
-
-        fn categoricalCrossEntropy(dataIdx: u32) -> f32 {
-            var error = 0f;
-            for (var i: u32 = 0; i < outputDims; i++) {
-                error += expectedOutputData[dataIdx][i] * log2(outputData[dataIdx][i]);
-            }
-            return -error;
         }
 
         fn calculateOutput(dataIdx: u32, relNeuronIdx: u32) {
@@ -187,9 +162,9 @@ export const neural_net_shader = (network) => {
 
         fn calculateLossGradient(dataIdx: u32, relNeuronIdx: u32) -> f32 {
             // mse grad
-            // return 2 * (outputData[dataIdx][relNeuronIdx] - expectedOutputData[dataIdx][relNeuronIdx]);
+            return 2 * (outputData[dataIdx][relNeuronIdx] - expectedOutputData[dataIdx][relNeuronIdx]);
             // categorical cross entropy grad
-            return (outputData[dataIdx][relNeuronIdx] - expectedOutputData[dataIdx][relNeuronIdx]);
+            // return (outputData[dataIdx][relNeuronIdx] - expectedOutputData[dataIdx][relNeuronIdx]);
         }
 
         fn feedFoward(layerIndex: u32, relNeuronIdx: u32) {
@@ -262,5 +237,44 @@ export const neural_net_shader = (network) => {
         ${activations}
 
         ${derivatives}
+
+        fn mse(dataIdx: u32) -> f32 {
+            var error = 0f;
+            for (var i: u32 = 0; i < outputDims; i++) {
+                error += pow(outputData[dataIdx][i] - expectedOutputData[dataIdx][i], 2);
+            }
+            return error / f32(outputDims);
+        }
+
+        fn categoricalCrossEntropy(dataIdx: u32) -> f32 {
+            var error = 0f;
+            for (var i: u32 = 0; i < outputDims; i++) {
+                error += expectedOutputData[dataIdx][i] * log2(outputData[dataIdx][i]);
+            }
+            return -error;
+        }
+
+        fn maxOutput(dataIdx: u32) -> MaxContainer {
+            var out: MaxContainer;
+            for (var i: u32 = 0; i < outputDims; i++) {
+                if (i == 0 || out.val < outputData[dataIdx][i]){
+                    out.val = outputData[dataIdx][i];
+                    out.index = i;
+                }
+            }
+            return out;
+        }
+
+        fn softmax(dataIdx: u32) { 
+            var max = maxOutput(dataIdx).val;
+            var divisor = 0f;
+            for (var i: u32 = 0; i < outputDims; i++) {
+                outputData[dataIdx][i] = exp(outputData[dataIdx][i] - max);
+                divisor += outputData[dataIdx][i];
+            }
+            for (var i: u32 = 0; i < outputDims; i++) {
+                outputData[dataIdx][i] /= divisor;
+            }
+        }
     `;
 };

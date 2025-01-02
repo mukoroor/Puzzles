@@ -16,41 +16,42 @@ const d = new RubixPuzzleDrawer();
 //     new SigmoidLayer(2, { weightsGenerator: () => 1/2, biasWeight: 1 }),
 //     new SigmoidLayer(1, { isTerminal: true})
 // ]);
-// const testNetwork = new NeuralNetwork([
-//     new LinearLayer(3),
-//     new SigmoidLayer(2),
-//     new SigmoidLayer(1, { isTerminal: true})
-// ]);
+// // const testNetwork = new NeuralNetwork([
+// //     new LinearLayer(3),
+// //     new SigmoidLayer(2),
+// //     new SigmoidLayer(1, { isTerminal: true})
+// // ]);
 // const X = [
-//   [0.1, 0.3, 0.7],
-//   [0.2, 0.8, 0.6],
-//   [0.4, 0.4, 0.9],
-//   [0.3, 0.5, 0.2],
-//   [0.7, 0.1, 0.8],
-//   [0.6, 0.6, 0.4],
-//   [0.8, 0.2, 0.5],
-//   [0.5, 0.7, 0.3],
-//   [0.2, 0.6, 0.1],
-//   [0.1, 0.2, 0.6],
-//   [0.9, 0.3, 0.7],
-//   [0.3, 0.9, 0.4],
-//   [0.7, 0.8, 0.2],
-//   [0.8, 0.4, 0.6],
-//   [0.6, 0.5, 0.7],
-//   [0.4, 0.3, 0.9],
-//   [0.5, 0.9, 0.2],
+//   // [0.1, 0.3, 0.7],
+//   // [0.2, 0.8, 0.6],
+//   // [0.4, 0.4, 0.9],
+//   // [0.3, 0.5, 0.2],
+//   // [0.7, 0.1, 0.8],
+//   // [0.6, 0.6, 0.4],
+//   // [0.8, 0.2, 0.5],
+//   // [0.5, 0.7, 0.3],
+//   // [0.2, 0.6, 0.1],
+//   // [0.1, 0.2, 0.6],
+//   // [0.9, 0.3, 0.7],
+//   // [0.3, 0.9, 0.4],
+//   // [0.7, 0.8, 0.2],
+//   // [0.8, 0.4, 0.6],
+//   // [0.6, 0.5, 0.7],
+//   // [0.4, 0.3, 0.9],
+//   // [0.5, 0.9, 0.2],
 //   [0.9, 0.1, 0.3],
 //   [0.2, 0.4, 0.7],
 //   [0.7, 0.5, 0.1],
 //   [  1,   1,   1],
 // ]
 // const y = [
-//   [0], [1], [0],
-//   [1], [0], [1],
-//   [0], [1], [0],
-//   [1], [0], [1],
-//   [0], [1], [0],
-//   [1], [0], [1],
+//   // [0], [1], [0],
+//   // [1], [0], [1],
+//   // [0], [1], [0],
+//   // [1], [0], [1],
+//   // [0], [1], [0],
+//   // [1], [0], 
+//   [1],
 //   [0], [1],
 //   [1],
 // ]
@@ -72,23 +73,23 @@ const d = new RubixPuzzleDrawer();
 // ]
 
 // test 3
-// const inDim = 256;
-// const outDim = 10;
-// const testNetwork = new NeuralNetwork(NeuralLayer.toLayers([inDim, 128, 64, outDim]));
-// let l = 21;
-// let X = Array.from({length: l}, () => {
-//   return Array.from({length: inDim}, () => Math.random() * 2 - 1)
-// })
+const inDim = 784;
+const outDim = 10;
+const testNetwork = new NeuralNetwork(NeuralLayer.toLayers([inDim, 128, 64, outDim]));
+let l = 4;
+let X = Array.from({length: l}, () => {
+  return Array.from({length: inDim}, () => Math.random() * 2 - 1)
+})
 
-// let y = Array.from({length: l}, () => {
-//   let vec  = Array.from({length: outDim}, () => Math.random() * 2 - 1)
-//   vec[Math.floor(Math.random() * outDim)] = 1;
-//   return vec;
-// })
+let y = Array.from({length: l}, () => {
+  let vec  = Array.from({length: outDim}, () => Math.random() * 2 - 1)
+  vec[Math.floor(Math.random() * outDim)] = 1;
+  return vec;
+})
 
 //test 4
 // const testNetwork = new NeuralNetwork([new LinearLayer(2), new SigmoidLayer(2), new SigmoidLayer(1, { isTerminal: true })]);
-// // const testNetwork = new NeuralNetwork([new LinearLayer(2, { weightsGenerator: () => 1/2, biasWeight: 1 }), new SigmoidLayer(2, { weightsGenerator: () => 1/2, biasWeight: 1 }), new SigmoidLayer(1, { isTerminal: true })]);
+// const testNetwork = new NeuralNetwork([new LinearLayer(2, { weightsGenerator: () => 1/2, biasWeight: 1 }), new SigmoidLayer(2, { weightsGenerator: () => 1/2, biasWeight: 1 }), new SigmoidLayer(1, { isTerminal: true })]);
 // // const testNetwork1 = new NeuralNetwork([new LinearLayer(2, { weightsGenerator: () => 1/2, biasWeight: 1 }), new SigmoidLayer(2, { weightsGenerator: () => 1/2, biasWeight: 1 }), new SigmoidLayer(1, { isTerminal: true })]);
 // let X = [
 //   [0, 0],
@@ -128,106 +129,110 @@ const d = new RubixPuzzleDrawer();
 document.addEventListener("DOMContentLoaded", async () => {
   // d.draw();
 
-  let request = await fetch('./testNumbers.json')
-  let response = await request.json()
+  // let request = await fetch('./testNumbers.json')
+  // let response = await request.json()
 
-  const testNetwork = new NeuralNetwork([
-    new LinearLayer(784),
-    new SigmoidLayer(128),
-    new SigmoidLayer(128),
-    new SigmoidLayer(10, {isTerminal: true})
-  ]);
+  // const testNetwork = new NeuralNetwork([
+  //   new LinearLayer(784),
+  //   new SigmoidLayer(256),
+  //   // new SigmoidLayer(128),
+  //   new SigmoidLayer(64),
+  //   // new SigmoidLayer(32),
+  //   new SigmoidLayer(10, {isTerminal: true})
+  // ]);
 
-  const XT = [];
-  const YT = [];
-  const XTE = [];
-  const YTE = [];
-  for (let i = 0; i < 1000; i++) {
-      const key = Object.keys(response[i])[0];
-      // if (XT.length == ) break;
-      if (i % 20 != 0) {
-          XT.push(response[i][key].map(e => e / 256));
-          let arr = Array(10).fill(0);
-          arr[key] = 1;
-          YT.push(arr);
-      } else {
-          XTE.push(response[i][key].map(e => e / 256));
-          let arr = Array(10).fill(0);
-          arr[key] = 1;
-          YTE.push(arr);
-      }
-  }
-  // console.log(XT, YT)
-  // console.log(XTE, YTE)
+  // const XT = [];
+  // const YT = [];
+  // const XTE = [];
+  // const YTE = [];
+  // for (let i = 0; i < 5; i++) {
+  //     const key = Object.keys(response[i])[0];
+  //     // if (XT.length == ) break;
+  //     if (i % 20 != 0) {
+  //         XT.push(response[i][key].map(e => e / 255));
+  //         let arr = Array(10).fill(0);
+  //         arr[key] = 1;
+  //         YT.push(arr);
+  //     } else {
+  //         XTE.push(response[i][key].map(e => e / 255));
+  //         let arr = Array(10).fill(0);
+  //         arr[key] = 1;
+  //         YTE.push(arr);
+  //     }
+  // }
+  // // console.log(XT, YT)
+  // // console.log(XTE, YTE)
 
-  let yPred = await testNetwork.predict(XT)
+  // let yPred = await testNetwork.predict(XT)
   
-  console.log(yPred)
-  console.log('TRAIN ERROR', NeuralNetwork.meanSquaredError(YT, yPred))
-  // console.log('ACC', accuracy(y, yPred))
+  // console.log(yPred)
+  // console.log('TRAIN ERROR', NeuralNetwork.meanSquaredError(YT, yPred))
+  // // console.log('ACC', accuracy(y, yPred))
   
-  yPred = await testNetwork.predict(XTE)
-  console.log(yPred)
-  console.log('TEST ERROR', NeuralNetwork.meanSquaredError(YTE, yPred))
-  // console.log('ACC', accuracy(y, yPred))
+  // yPred = await testNetwork.predict(XTE)
+  // console.log(yPred)
+  // console.log('TEST ERROR', NeuralNetwork.meanSquaredError(YTE, yPred))
+  // // console.log('ACC', accuracy(y, yPred))
   
   // console.log(await testNetwork.extractNetworkParameters())
-  await testNetwork.train(XT, YT, 30, {
-      learningRate: 0.2,
-      trainMethod: TRAIN_METHOD.MINI_BATCH,
-      batchSize: 32,
-      // traceHistory: true,
-    });
-  console.log(await testNetwork.extractNetworkParameters())
-  // console.log(await testNetwork.extractNetworkOutput())
+  // await testNetwork.train(XT, YT, 30, {
+  //     learningRate: 0.2,
+  //     trainMethod: TRAIN_METHOD.BATCH,
+  //     batchSize: 4,
+  //     // traceHistory: true,
+  //   });
+  // console.log(await testNetwork.extractNetworkParameters())
+  // // console.log(await testNetwork.extractNetworkOutput())
 
-  yPred = await testNetwork.predict(XT)
+  // yPred = await testNetwork.predict(XT)
+  // console.log(yPred)
+  // console.log('TRAIN ERROR', NeuralNetwork.meanSquaredError(YT, yPred));
+
+  // yPred = await testNetwork.predict(XTE)
+  // console.log(yPred)
+  // console.log('TEST ERROR', NeuralNetwork.meanSquaredError(YTE, yPred));
+
+
+  let yPred = await testNetwork.predict(X);
   console.log(yPred)
-  console.log('TRAIN ERROR', NeuralNetwork.meanSquaredError(YT, yPred));
+  console.log("TRAIN ERROR: START", NeuralNetwork.meanSquaredError(y, yPred));
 
-  yPred = await testNetwork.predict(XTE)
-  console.log(yPred)
-  console.log('TEST ERROR', NeuralNetwork.meanSquaredError(YTE, yPred));
-
-
-  // let yPred = await testNetwork.predict(X);
-  // // console.log(yPred)
-  // // console.log(yPred.map(e => [1 + e.reduce((a, c, i, arr) => arr[a] > c ? a : i, 0)]))
-  // console.log(
-  //   "TRAIN ERROR: START",
-  //   NeuralNetwork.meanSquaredError(
-  //     y,
-  //     yPred.map((e) => [
-  //       1 + e.reduce((a, c, i, arr) => (arr[a] > c ? a : i), 0),
-  //     ])
-  //   )
-  // );
+  // // // console.log(yPred.map(e => [1 + e.reduce((a, c, i, arr) => arr[a] > c ? a : i, 0)]))
   // // console.log(
-  // //   "ACCURACY: START",
-  // //   accuracy(
-  // //     cls,
+  // //   "TRAIN ERROR: START",
+  // //   NeuralNetwork.meanSquaredError(
+  // //     y,
   // //     yPred.map((e) => [
   // //       1 + e.reduce((a, c, i, arr) => (arr[a] > c ? a : i), 0),
   // //     ])
   // //   )
   // // );
+  // // // console.log(
+  // // //   "ACCURACY: START",
+  // // //   accuracy(
+  // // //     cls,
+  // // //     yPred.map((e) => [
+  // // //       1 + e.reduce((a, c, i, arr) => (arr[a] > c ? a : i), 0),
+  // // //     ])
+  // // //   )
+  // // // );
 
-  // let epochs = 2000;
-  // // console.log(await testNetwork.extractNetworkParameters())
-  // console.log(
-  //   await testNetwork.train(X, y, epochs, {
-  //     learningRate: 0.4,
-  //     trainMethod: TRAIN_METHOD.BATCH,
-  //     batchSize: 4,
-  //     traceHistory: true,
-  //   })
-  // );
-  // // console.log(await testNetwork.extractNetworkParameters())
+  let epochs = 1000;
+  console.log(await testNetwork.extractNetworkParameters())
+  console.log(
+    await testNetwork.train(X, y, epochs, {
+      learningRate: 1,
+      trainMethod: TRAIN_METHOD.BATCH,
+      batchSize: 4,
+      // traceHistory: true,
+    })
+  );
+  console.log(await testNetwork.extractNetworkParameters())
 
-  // yPred = await testNetwork.predict(X);
+  yPred = await testNetwork.predict(X);
   // // console.log(await testNetwork.extractNetworkParameters())
-  // console.log(y, yPred)
-  // console.log("TRAIN ERROR: END", NeuralNetwork.meanSquaredError(y, yPred));
+  console.log(y, yPred)
+  console.log("TRAIN ERROR: END", NeuralNetwork.meanSquaredError(y, yPred));
   // console.log(
   //   "ACCURACY: END",
   //   accuracy(

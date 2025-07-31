@@ -1,4 +1,4 @@
-import GPUConnector from "../GPUConnector.js";
+import GPUConnector from "../GPU-Connector-API/GPUConnector.js";
 import { move_eval_shader } from "./MoveEvalShader.js";
 
 export default class RubixMoveEvaluator extends GPUConnector {
@@ -47,7 +47,7 @@ export default class RubixMoveEvaluator extends GPUConnector {
   }
 
   #createBindBuffers() {
-    this.createBuffer(
+    this.allocateAndCache(
       "face_colorings",
       Math.ceil(
         (3 * 6 * this.colorsPerFace) / (8 * Uint32Array.BYTES_PER_ELEMENT)
@@ -58,7 +58,7 @@ export default class RubixMoveEvaluator extends GPUConnector {
   }
 
   #createOutputBuffers(faceColoringsInstanceCount) {
-    this.createBuffer(
+    this.allocateAndCache(
       "cube_colorings_output",
       faceColoringsInstanceCount *
         Math.ceil(
@@ -68,7 +68,7 @@ export default class RubixMoveEvaluator extends GPUConnector {
         Uint32Array.BYTES_PER_ELEMENT,
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
     );
-    this.createBuffer(
+    this.allocateAndCache(
       "score_output",
       faceColoringsInstanceCount *
         this.moves.length *
@@ -85,7 +85,7 @@ export default class RubixMoveEvaluator extends GPUConnector {
 
   #updateFaceColoringsBuffer(colorings) {
     const COLORINGS = new Uint32Array(colorings);
-    this.writeBuffer1to1("face_colorings", COLORINGS);
+    this.writeCachedBuffer1to1("face_colorings", COLORINGS);
   }
 
   #createComputePipeline() {
@@ -209,7 +209,7 @@ export default class RubixMoveEvaluator extends GPUConnector {
     const offsetBytes = Math.floor(strBitOff) * Uint32Array.BYTES_PER_ELEMENT;
     const offsetExtra = offsetBytes % 8 ? 4 : 0;
 
-    const perm = await this.mapBufferToCPU(
+    const perm = await this.mapBuffer(
       "cube_colorings_output_copy",
       Uint32Array,
       offsetBytes - offsetExtra,
@@ -271,20 +271,20 @@ export default class RubixMoveEvaluator extends GPUConnector {
       }
 
       if (currGeneration == generations || finish) {
-        this.copyBuffer("score_output", commandEncoder);
+        // this.copyBuffer("score_output", commandEncoder); need t o fix these
         // this.copyBuffer("face_colorings", commandEncoder);
-        this.copyBuffer("cube_colorings_output", commandEncoder);
+        // this.copyBuffer("cube_colorings_output", commandEncoder);
         this.device.queue.submit([commandEncoder.finish()]);
 
         return await Promise.all([
-          this.mapBufferToCPU("score_output_copy", Float32Array).then((e) => {
+          this.mapBuffer("score_output_copy", Float32Array).then((e) => {
             let array2D = [];
             for (let i = 0; i < e.length / 6; i++) {
               array2D.push(Array.from(e.slice(i * 6, (i + 1) * 6))); // Slice each 6-element chunk
             }
             return array2D;
           }),
-          // this.mapBufferToCPU('cube_colorings_output_copy', Uint32Array).then(e => {
+          // this.mapBuffer('cube_colorings_output_copy', Uint32Array).then(e => {
           //   let s = Array.from(e).map(num => num.toString(2).padStart(32, '0'))
           //   let parsed = segmentString(s.reverse().join('')).map(e => parseInt(e, 2));
           //   let array2D = [];

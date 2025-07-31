@@ -1,4 +1,4 @@
-import Drawer from "../Drawer.js";
+import Drawer from "../GPU-Connector-API/Drawer.js";
 import { ROUNDED_SQUARE_INDICES, ROUNDED_SQUARE_VERTICES } from "./Meshes.js";
 import RubixPuzzle, { DO_NOTHING_MOVE } from "./RubixPuzzle.js";
 import { frag_vert_shader } from "./RubixShader.js";
@@ -225,9 +225,9 @@ export default class RubixPuzzleDrawer extends Drawer {
       if (this.rotationAngle == 0) this.updateFlag = Drawer.UPDATE_FLAGS.IDLE;
       else if (Math.abs(this.rotationAngle) == this.movementData[3] * 90)
         this.updateFlag = RubixPuzzleDrawer.UPDATE_FLAGS.ROTATION;
-      window.requestAnimationFrame(frame);
+      window.allocateAndCacheandCache(frame);
     };
-    window.requestAnimationFrame(frame);
+    window.allocateAndCacheandCache(frame);
   }
 
   #createMeshBuffers() {
@@ -243,62 +243,62 @@ export default class RubixPuzzleDrawer extends Drawer {
     const TRIANGLE_ENUMERATION = new Float32Array(
       ROUNDED_SQUARE_INDICES.reduce((arr, _, i) => arr.concat([i, i, i]), [])
     );
-    this.createBuffer(
+    this.allocateAndCacheBuffer(
       "triangles_buffer",
       TRIANGLES.byteLength,
       GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     );
-    this.createBuffer(
+    this.allocateAndCacheBuffer(
       "triangle_enum",
       TRIANGLE_ENUMERATION.byteLength,
       GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     );
-    this.writeBuffer1to1("triangles_buffer", TRIANGLES);
-    this.writeBuffer1to1("triangle_enum", TRIANGLE_ENUMERATION);
+    this.writeCachedBuffer1to1("triangles_buffer", TRIANGLES);
+    this.writeCachedBuffer1to1("triangle_enum", TRIANGLE_ENUMERATION);
 
     const TEST = new Float32Array(AID_MESH.flat());
-    this.createBuffer(
+    this.allocateAndCacheBuffer(
       "aid_mesh_buffer",
       TEST.byteLength,
       GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     );
-    this.writeBuffer1to1("aid_mesh_buffer", TEST);
+    this.writeCachedBuffer1to1("aid_mesh_buffer", TEST);
   }
 
   #createBindBuffers() {
     const pieceCount = this.puzzle.pieceCount;
-    this.createBuffer(
+    this.allocateAndCacheBuffer(
       "piece_colors",
       Uint32Array.BYTES_PER_ELEMENT * pieceCount * 8,
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     );
-    this.createBuffer(
+    this.allocateAndCacheBuffer(
       "piece_positions",
       Float32Array.BYTES_PER_ELEMENT * pieceCount * 4,
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     );
-    this.createBuffer(
+    this.allocateAndCacheBuffer(
       "piece_is_rotating",
       Uint32Array.BYTES_PER_ELEMENT * pieceCount,
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     );
-    this.createBuffer(
+    this.allocateAndCacheBuffer(
       "rotating_center_avg_ids",
       Uint32Array.BYTES_PER_ELEMENT *
         (this.puzzle.faces[0].corners.length || 1),
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     );
-    this.createBuffer(
+    this.allocateAndCacheBuffer(
       "rotation_interpolation",
       Float32Array.BYTES_PER_ELEMENT * 2,
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     );
-    this.createBuffer(
+    this.allocateAndCacheBuffer(
       "render_state",
       Float32Array.BYTES_PER_ELEMENT * 6,
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     );
-    this.createBuffer(
+    this.allocateAndCacheBuffer(
       "colors",
       Float32Array.BYTES_PER_ELEMENT * 4 * this.colors.length,
       GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
@@ -317,27 +317,27 @@ export default class RubixPuzzleDrawer extends Drawer {
 
   #updateCentersBuffer(centers) {
     const CENTERS = new Int32Array(centers.flat());
-    this.writeBuffer1to1("rotating_center_avg_ids", CENTERS);
+    this.writeCachedBuffer1to1("rotating_center_avg_ids", CENTERS);
   }
 
   #updatePiecePositionsBuffer(positions) {
     const PIECE_POSITIONS = new Float32Array(positions.flat());
-    this.writeBuffer1to1("piece_positions", PIECE_POSITIONS);
+    this.writeCachedBuffer1to1("piece_positions", PIECE_POSITIONS);
   }
 
   #updatePieceColorBuffer(colors) {
     const PIECE_COLORS = new Uint32Array(colors.flat());
-    this.writeBuffer1to1("piece_colors", PIECE_COLORS);
+    this.writeCachedBuffer1to1("piece_colors", PIECE_COLORS);
   }
 
   #updatePieceIsRotatingBuffer(isRotatings) {
     const PIECE_IS_ROTATING = new Uint32Array(isRotatings.flat());
-    this.writeBuffer1to1("piece_is_rotating", PIECE_IS_ROTATING);
+    this.writeCachedBuffer1to1("piece_is_rotating", PIECE_IS_ROTATING);
   }
 
   #updateColorsBuffer() {
     const COLOR = new Float32Array(this.colors.flat());
-    this.writeBuffer1to1("colors", COLOR);
+    this.writeCachedBuffer1to1("colors", COLOR);
   }
 
   #updateRenderStateBuffer() {
@@ -351,7 +351,7 @@ export default class RubixPuzzleDrawer extends Drawer {
     ];
 
     const RENDER_STATE = new Float32Array(stateData);
-    this.writeBuffer1to1("render_state", RENDER_STATE);
+    this.writeCachedBuffer1to1("render_state", RENDER_STATE);
   }
 
   #updateInterpolationBuffer() {
@@ -361,7 +361,7 @@ export default class RubixPuzzleDrawer extends Drawer {
         ? 5 - this.movementData[0]
         : this.movementData[0],
     ]);
-    this.writeBuffer1to1("rotation_interpolation", ANGLE);
+    this.writeCachedBuffer1to1("rotation_interpolation", ANGLE);
   }
 
   #createMainRenderPipeline() {

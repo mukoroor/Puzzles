@@ -1,8 +1,7 @@
 import WGSLActivationContainer from "./ActivationFunctions.js";
+import { MATRIX_MULTIPLY } from "./NeuralNetCompute.js";
 
 class NeuralLayer {
-  weightsGenerator = () => Math.random();
-
   constructor() {}
 
   static toLayers(layerSizes) {
@@ -18,48 +17,44 @@ class NeuralLayer {
 
 
 export default class ActivationLayer extends NeuralLayer {
-  weightsGenerator = () => Math.random();
-  activationGenerator = () => WGSLActivationContainer.getActivationId("DROPOUT");
-  hasBias = true;
-  isTerminal = false;
+  static activationGenerator = () => WGSLActivationContainer.getActivationId("DROPOUT");
+  shaderPipeline = []
+  forwardCallback;
 
-  constructor(size, options = {}) {
+  constructor(options = {}) {
     super();
     const {
       activationGenerator,
-      weightsGenerator,
-      biasWeight,
-      hasBias,
-      isTerminal,
     } = options;
-    this.size = size;
-    this.biasWeight = biasWeight;
-    if (activationGenerator) this.activationGenerator = activationGenerator;
-    if (weightsGenerator) this.weightsGenerator = weightsGenerator;
-    if (hasBias) this.hasBias = hasBias;
-    if (isTerminal !== undefined) this.isTerminal = isTerminal;
+    this.activationGenerator = activationGenerator || ActivationLayer.activationGenerator;
   }
 
-  getNeuronData(outputSize) {
-    const weights = Array.from({ length: outputSize }, () => {
-      const n_weights = generateVals(this.size, (_, i) => this.weightsGenerator(this.size, outputSize, i));
-      if (!this.isTerminal)
-        n_weights.push(
-          this.hasBias ? this.biasWeight || this.weightsGenerator(this.size, outputSize, n_weights.length) : 0
-        );
-      return n_weights;
-    });
+  initLayerData(device_connector, inputSize) {
 
-    const activationFunctions = generateVals(
-      this.size,
-      this.activationGenerator
-    );
-    if (!this.isTerminal)
-      activationFunctions.push(
-        this.hasBias ? WGSLActivationContainer.getActivationId("CONSTANT") : WGSLActivationContainer.getActivationId("DROPOUT")
-      );
+    const dims = [inputSize, this.size]
+    const [weights, funcIds] = this.generateNeuronData(inputSize);
 
-    return [weights, activationFunctions];
+    const bufferCreationParams = [
+      [dims, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC, Uint32Array],
+      [weights, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC, Float32Array],
+      [funcIds, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC, Uint32Array],
+    ]
+    const networkParamBuffers = bufferCreationParams.map(e => device_connector.createBuffer(...e));
+
+    this.params = networkParamBuffers;
+  }
+
+
+  setupForwardCallback(device_connector, inputsObj, resultsObj) {
+    const callbacks = this.shaderPipeline.map(e => e.createCallback(device_connector, workgroups, inputs, outputs, perShaderArgs))
+
+    this.forwardCallback = (commandEncoder) => {
+      callbacks.forEach((e, i) => e(commandEncoder, 0, i === callbacks.length - 1));
+    }
+  }
+
+  forward(commandEncoder) {
+    this.forwardCallback(commandEncoder);
   }
 }
 
@@ -75,9 +70,63 @@ export class ReluLayer extends ActivationLayer {
   }
 }
 
-export class LinearLayer extends ActivationLayer {
+export class LinearLayer extends NeuralLayer {
+  static weightsGenerator = () => Math.random();
+  hasBias = true;
+  isTerminal = false;
+  shaderPipeline = [MATRIX_MULTIPLY];
+
   constructor(size, options = {}) {
-    super(size, { ...options, activationGenerator: () => WGSLActivationContainer.getActivationId("LINEAR") });
+    super();
+    const {
+      hasBias,
+      biasGenerator,
+      weightsGenerator,
+    } = options;
+    if (hasBias) this.hasBias = hasBias;
+    this.biasGenerator = biasGenerator || NeuralLayer.weightsGenerator;
+    this.weightsGenerator = weightsGenerator || NeuralLayer.weightsGenerator;
+    this.size = size;
+  }
+
+  generateWeights(inputSize) {
+    const weights = Array.from({ length: inputSize + (this.hasBias && 1) }, (_, neuronIdx) => {
+      let n_weights;
+      if (this.hasBias && neuronIdx == inputSize) {
+        n_weights = generateVals(this.size, (_, i) => this.biasGenerator(inputSize, this.size, i));
+      } else {
+        n_weights = generateVals(this.size, (_, i) => this.weightsGenerator(inputSize, this.size, i));
+      }
+      return n_weights;
+    });
+    return weights;
+  }
+
+  initLayerData(device_connector, inputSize) {
+
+    const dims = [inputSize, this.size]
+    const weights = this.generateWeights(inputSize);
+
+    const bufferCreationParams = [
+      [dims, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC, Uint32Array],
+      [weights, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC, Float32Array],
+    ]
+    const [dimsBuff, weightBuff] = bufferCreationParams.map(e => device_connector.createBuffer(...e));
+
+    this.params = {
+      dimsCPU: dims,
+      dims: dimsBuff,
+      weightBuff
+    };
+  }
+
+
+  setupForwardCallback(device_connector, inputsObj, resultsObj) {
+    const callbacks = this.shaderPipeline.map(e => e.createCallback(device_connector, inputs, outputs, perShaderArgs))
+
+    this.forwardCallback = (commandEncoder) => {
+      callbacks.forEach((e, i) => e(commandEncoder, 0, i === callbacks.length - 1));
+    }
   }
 }
 

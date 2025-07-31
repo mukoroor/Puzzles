@@ -1,0 +1,3 @@
+[submodule "GPU-Connector-API"]
+	path = GPU-Connector-API
+	url = https://github.com/mukoroor/GPU-Connector-API

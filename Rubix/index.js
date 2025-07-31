@@ -1,19 +1,24 @@
 import RubixPuzzleDrawer from "./RubixPuzzleDrawer.js";
-import NeuralNetwork from "../NeuralNetwork/NeuralNetwork.js";
-import NeuralLayer, {
-  LinearLayer,
-  ReluLayer,
-  SigmoidLayer,
-} from "../NeuralNetwork/NeuralLayer.js";
-import { TRAIN_METHOD } from "../NeuralNetwork/NetworkConsts.js";
-import WGSLActivations from "../NeuralNetwork/ActivationFunctions.js";
+// import NeuralNetwork from "../NeuralNetwork/NeuralNetwork.js";
+// import NeuralLayer, {
+//   LinearLayer,
+//   ReluLayer,
+//   SigmoidLayer,
+// } from "../NeuralNetwork/NeuralLayer.js";
+// import { TRAIN_METHOD } from "../NeuralNetwork/NetworkConsts.js";
+// import WGSLActivations from "../NeuralNetwork/ActivationFunctions.js";
 
 const d = new RubixPuzzleDrawer();
 
 // test 1
 // const testNetwork = new NeuralNetwork([
-//     new LinearLayer(3, { weightsGenerator: () => 1/3, biasWeight: 1 }),
-//     new SigmoidLayer(2, { weightsGenerator: () => 1/2, biasWeight: 1 }),
+//     new LinearLayer(3, { weightsGenerator: () => 1, isTerminal: true}),
+//     new SigmoidLayer(2, { weightsGenerator: () => 1, isTerminal: true }),
+//     new SigmoidLayer(1, { isTerminal: true})
+// ]);
+// const testNetwork = new NeuralNetwork([
+//     new LinearLayer(3),
+//     new SigmoidLayer(2),
 //     new SigmoidLayer(1, { isTerminal: true})
 // ]);
 // // const testNetwork = new NeuralNetwork([
@@ -22,35 +27,35 @@ const d = new RubixPuzzleDrawer();
 // //     new SigmoidLayer(1, { isTerminal: true})
 // // ]);
 // const X = [
-//   // [0.1, 0.3, 0.7],
-//   // [0.2, 0.8, 0.6],
-//   // [0.4, 0.4, 0.9],
-//   // [0.3, 0.5, 0.2],
-//   // [0.7, 0.1, 0.8],
-//   // [0.6, 0.6, 0.4],
-//   // [0.8, 0.2, 0.5],
-//   // [0.5, 0.7, 0.3],
-//   // [0.2, 0.6, 0.1],
-//   // [0.1, 0.2, 0.6],
-//   // [0.9, 0.3, 0.7],
-//   // [0.3, 0.9, 0.4],
-//   // [0.7, 0.8, 0.2],
-//   // [0.8, 0.4, 0.6],
-//   // [0.6, 0.5, 0.7],
-//   // [0.4, 0.3, 0.9],
-//   // [0.5, 0.9, 0.2],
+//   [0.1, 0.3, 0.7],
+//   [0.2, 0.8, 0.6],
+//   [0.4, 0.4, 0.9],
+//   [0.3, 0.5, 0.2],
+//   [0.7, 0.1, 0.8],
+//   [0.6, 0.6, 0.4],
+//   [0.8, 0.2, 0.5],
+//   [0.5, 0.7, 0.3],
+//   [0.2, 0.6, 0.1],
+//   [0.1, 0.2, 0.6],
+//   [0.9, 0.3, 0.7],
+//   [0.3, 0.9, 0.4],
+//   [0.7, 0.8, 0.2],
+//   [0.8, 0.4, 0.6],
+//   [0.6, 0.5, 0.7],
+//   [0.4, 0.3, 0.9],
+//   [0.5, 0.9, 0.2],
 //   [0.9, 0.1, 0.3],
 //   [0.2, 0.4, 0.7],
 //   [0.7, 0.5, 0.1],
 //   [  1,   1,   1],
 // ]
 // const y = [
-//   // [0], [1], [0],
-//   // [1], [0], [1],
-//   // [0], [1], [0],
-//   // [1], [0], [1],
-//   // [0], [1], [0],
-//   // [1], [0], 
+//   [0], [1], [0],
+//   [1], [0], [1],
+//   [0], [1], [0],
+//   [1], [0], [1],
+//   [0], [1], [0],
+//   [1], [0], 
 //   [1],
 //   [0], [1],
 //   [1],
@@ -73,19 +78,19 @@ const d = new RubixPuzzleDrawer();
 // ]
 
 // test 3
-const inDim = 784;
-const outDim = 10;
-const testNetwork = new NeuralNetwork(NeuralLayer.toLayers([inDim, 128, 64, outDim]));
-let l = 4;
-let X = Array.from({length: l}, () => {
-  return Array.from({length: inDim}, () => Math.random() * 2 - 1)
-})
+// const inDim = 784;
+// const outDim = 10;
+// const testNetwork = new NeuralNetwork(NeuralLayer.toLayers([inDim, 128, 64, outDim]));
+// let l = 800;
+// let X = Array.from({length: l}, () => {
+//   return Array.from({length: inDim}, () => Math.random() * 2 - 1)
+// })
 
-let y = Array.from({length: l}, () => {
-  let vec  = Array.from({length: outDim}, () => Math.random() * 2 - 1)
-  vec[Math.floor(Math.random() * outDim)] = 1;
-  return vec;
-})
+// let y = Array.from({length: l}, () => {
+//   let vec  = Array.from({length: outDim}, () => Math.random() * 2 - 1)
+//   vec[Math.floor(Math.random() * outDim)] = 1;
+//   return vec;
+// })
 
 //test 4
 // const testNetwork = new NeuralNetwork([new LinearLayer(2), new SigmoidLayer(2), new SigmoidLayer(1, { isTerminal: true })]);
@@ -193,9 +198,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // console.log('TEST ERROR', NeuralNetwork.meanSquaredError(YTE, yPred));
 
 
-  let yPred = await testNetwork.predict(X);
-  console.log(yPred)
-  console.log("TRAIN ERROR: START", NeuralNetwork.meanSquaredError(y, yPred));
+  // let yPred = await testNetwork.predict(X);
+  // console.log(yPred)
+  // console.log("TRAIN ERROR: START", NeuralNetwork.meanSquaredError(y, yPred));
 
   // // // console.log(yPred.map(e => [1 + e.reduce((a, c, i, arr) => arr[a] > c ? a : i, 0)]))
   // // console.log(
@@ -217,22 +222,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   // // //   )
   // // // );
 
-  let epochs = 1000;
-  console.log(await testNetwork.extractNetworkParameters())
-  console.log(
-    await testNetwork.train(X, y, epochs, {
-      learningRate: 1,
-      trainMethod: TRAIN_METHOD.BATCH,
-      batchSize: 4,
-      // traceHistory: true,
-    })
-  );
-  console.log(await testNetwork.extractNetworkParameters())
-
-  yPred = await testNetwork.predict(X);
+  // let epochs = 1;
   // // console.log(await testNetwork.extractNetworkParameters())
-  console.log(y, yPred)
-  console.log("TRAIN ERROR: END", NeuralNetwork.meanSquaredError(y, yPred));
+  // console.log(
+  //   await testNetwork.train(X, y, epochs, {
+  //     learningRate: 1,
+  //     trainMethod: TRAIN_METHOD.BATCH,
+  //     // batchSize: ,
+  //     // traceHistory: true,
+  //   })
+  // );
+  // console.log(await testNetwork.extractNetworkParameters())
+
+  // yPred = await testNetwork.predict(X);
+  // // console.log(await testNetwork.extractNetworkParameters())
+  // console.log(y, yPred)
+  // console.log("TRAIN ERROR: END", NeuralNetwork.meanSquaredError(y, yPred));
   // console.log(
   //   "ACCURACY: END",
   //   accuracy(
@@ -1541,3 +1546,374 @@ function equals(arr1, arr2) {
 //   t[e - 1] = 1;
 //   return t;
 // });
+import * as AS from "../NeuralNetwork/Tensor/Tensor.js";
+
+const handler = {
+  get(target, property, reciever) {
+    console.log(target, property, reciever)
+    return Reflect.get(target, property);
+  }
+}
+
+const t = new Proxy(AS, handler)
+
+// t.testP(1); 
+
+import { CORRELATION_FILTER, MATRIX_MULTIPLY, MATRIX_MULTIPLY_SHADER_V, POOL } from "../NeuralNetwork/NeuralNetCompute.js";
+import { SHADER as TILED_MATRIX_MULT_SHADER, TILE_BLOCK_DIM, TILE_SIZE, SHADER_ENTRY_POINT as TILED_MATRIX_MULT_SHADER_ENTRY_POINT } from "../NeuralNetwork/Tensor/shaders/MatrixMultiplication.js";
+import * as Tensor from '../NeuralNetwork/Tensor/Tensor.js'
+import matrixMultiplication from "../NeuralNetwork/Tensor/OperationsGPU.js";
+async function runMatrixMultiply2(A, B, A_dims, B_dims) {
+  if (!navigator.gpu) {
+      console.error("WebGPU not supported on this browser.");
+      return;
+  }
+
+  // Request WebGPU Adapter & Device
+  const adapter = await navigator.gpu.requestAdapter();
+  const device = await adapter.requestDevice({
+    // requiredFeatures: ["subgroups"],
+  });
+  // console.log("WebGPU Device:", device);
+
+  const test2 = await Tensor.sendToGPUDevice(test1, device)
+
+  // console.log(test2)
+  // console.log(await AS.sendToMain(await test2))
+
+  await matrixMultiplication(test2, test2)
+  await matrixMultiplication(test2, test2)
+  await matrixMultiplication(test2, test2)
+  await matrixMultiplication(test2, test2)
+  await matrixMultiplication(test2, test2)
+  await matrixMultiplication(test2, test2)
+  await matrixMultiplication(test2, test2)
+  await matrixMultiplication(test2, test2)
+  await matrixMultiplication(test2, test2)
+  await matrixMultiplication(test2, test2)
+
+  const i32_Tensor = await Tensor.toInt32(test2)
+
+  console.log(await Tensor.sendToMain(test2))
+  console.log(await Tensor.sendToMain(i32_Tensor))
+
+
+
+  
+
+  // Load WGSL Shader
+//   const shaderModule = device.createShaderModule({
+//       code: TILED_MATRIX_MULT_SHADER,
+//   });
+
+//   // Create Buffers (GPU Memory)
+//   const A_buffer = createGPUBuffer(device, A, GPUBufferUsage.STORAGE);
+//   const B_buffer = createGPUBuffer(device, B, GPUBufferUsage.STORAGE);
+//   const C_buffer = createGPUBuffer(device, new Float32Array(A_dims[0] * B_dims[1]), GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
+  
+//   const Dims_buffer = createGPUBuffer(device, new Uint32Array([A_dims[0], B_dims[0], B_dims[1]]), GPUBufferUsage.UNIFORM);
+  
+//   // Create Bind Group Layout & Pipeline
+//   const bindGroupLayout = device.createBindGroupLayout({
+//       entries: [
+//           { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
+//           { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
+//           { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
+//           { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
+//       ]
+//   });
+
+//   const pipelineLayout = device.createPipelineLayout({
+//       bindGroupLayouts: [bindGroupLayout]
+//   });
+
+//   const computePipeline = device.createComputePipeline({
+//       layout: pipelineLayout,
+//       compute: {
+//           module: shaderModule,
+//           entryPoint: TILED_MATRIX_MULT_SHADER_ENTRY_POINT,
+//       },
+//   });
+
+//   // Create Bind Groups
+//   const bindGroup = device.createBindGroup({
+//       layout: bindGroupLayout,
+//       entries: [
+//           { binding: 0, resource: { buffer: A_buffer } },
+//           { binding: 1, resource: { buffer: B_buffer } },
+//           { binding: 2, resource: { buffer: C_buffer } },
+//           { binding: 3, resource: { buffer: Dims_buffer } },
+//       ],
+//   });
+
+//   // Create Command Encoder & Compute Pass
+//   const commandEncoder = device.createCommandEncoder();
+//   const passEncoder = commandEncoder.beginComputePass();
+//   passEncoder.setPipeline(computePipeline);
+//   passEncoder.setBindGroup(0, bindGroup);
+
+//   // Dispatch Compute Workgroups
+//   const TILE_BLOCK_WIDTH = TILE_BLOCK_DIM * TILE_SIZE;
+//   const workgroupCountX = Math.ceil(A_dims[0] / TILE_BLOCK_WIDTH);
+//   const workgroupCountY = Math.ceil(B_dims[1] / TILE_BLOCK_WIDTH);
+//   passEncoder.dispatchWorkgroups(workgroupCountX, workgroupCountY);
+ 
+//   passEncoder.end();
+
+  
+//   // Copy result from GPU
+//   const gpuReadBuffer = device.createBuffer({
+//     size: C_buffer.size,
+//     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+//   });
+  
+//   commandEncoder.copyBufferToBuffer(C_buffer, 0, gpuReadBuffer, 0, C_buffer.size);
+  
+//   // Submit Command Buffer
+//   const commands = commandEncoder.finish();
+//   const start = performance.now();
+
+//   device.queue.submit([commands]);
+
+//   await device.queue.onSubmittedWorkDone()
+  
+//   // Read back the GPU result
+//   await gpuReadBuffer.mapAsync(GPUMapMode.READ);
+//   const result = new Float32Array(gpuReadBuffer.getMappedRange());
+//   console.log('ms', performance.now() - start)
+//   // console.log("Matrix C:", Array.from(result));
+//   // gpuReadBuffer.unmap();
+// }
+
+// // Utility: Create GPU Buffer
+// function createGPUBuffer(device, data, usage) {
+//   const buffer = device.createBuffer({
+//       size: data.byteLength,
+//       usage: usage | GPUBufferUsage.COPY_DST,
+//       mappedAtCreation: true,
+//   });
+
+//   new data.constructor(buffer.getMappedRange()).set(data);
+//   buffer.unmap();
+//   return buffer;
+}
+
+function* seq(st, sp, stp=1) {
+  for (let i = st; i < sp; i+=stp) {
+    yield 3.1415;
+  }
+}
+
+// Example Matrices
+let size = 4092;
+const A = new Float32Array([...seq(0, 2 * 2)]);
+const B = new Float32Array([...seq(0, 2 * 2)]);
+
+
+// console.log(A)
+// console.log(A)
+const A_dims = [2, 2, 0, 2 * 2]; // 2 rows, 3 cols
+const B_dims = [2, 2, 0, 2 * 2]; // 3 rows, 2 cols
+
+const test1 = Tensor.from([...seq(0, size * size)], [size, size], Float32Array);
+
+console.log(test1)
+// console.log(await Tensor.floor(test1))
+// console.log(await Tensor.ceil(test1))
+// console.log(await Tensor.round(test1))
+// console.log(await Tensor.toInt32(test1))
+// console.log(await Tensor.trunc(test1))
+// console.log(await Tensor.transform(test1, (v) => v ** 3))
+// console.log(test1)
+// console.log(test1)
+// console.log(test1)
+// console.log(test1)
+// console.log(test1)
+// console.log(test1)
+
+runMatrixMultiply2(A, B, A_dims, B_dims);
+
+
+// import { CORRELATION, MATRIX_MULTIPLY } from "../NeuralNetwork/NeuralNetCompute.js";
+
+// async function runMatrixMultiply(A, B, C, A_dims, B_dims, C_dims) {
+//   if (!navigator.gpu) {
+//       console.error("WebGPU not supported on this browser.");
+//       return;
+//   }
+
+//   const adapter = await navigator.gpu.requestAdapter();
+//   const device = await adapter.requestDevice();
+
+//   const shaderModule = device.createShaderModule({
+//       code: MATRIX_MULTIPLY,
+//   });
+
+//   // Compute D_dims (rows of A, cols of B)
+//   const D_dims = [A_dims[0], B_dims[1], 0, A_dims[0] * B_dims[1]];  
+//   // Compute Final Output Dimensions (D * C)
+//   const Final_dims = [D_dims[0], C_dims[1], 0, D_dims[0] * C_dims[1]];  
+
+//   // Create Buffers for A, B, C, D, Final
+//   const A_buffer = createGPUBuffer(device, A, GPUBufferUsage.STORAGE);
+//   const B_buffer = createGPUBuffer(device, B, GPUBufferUsage.STORAGE);
+//   const C_buffer = createGPUBuffer(device, C, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
+//   const D_buffer = createGPUBuffer(device, new Float32Array(D_dims[3]), GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
+//   const Final_buffer = createGPUBuffer(device, new Float32Array(Final_dims[3]), GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
+
+//   // Buffers for dimensions
+//   const A_dims_buffer = createGPUBuffer(device, new Uint32Array(A_dims), GPUBufferUsage.UNIFORM);
+//   const B_dims_buffer = createGPUBuffer(device, new Uint32Array(B_dims), GPUBufferUsage.UNIFORM);
+//   const C_dims_buffer = createGPUBuffer(device, new Uint32Array(C_dims), GPUBufferUsage.UNIFORM);
+//   const D_dims_buffer = createGPUBuffer(device, new Uint32Array(D_dims), GPUBufferUsage.UNIFORM);
+//   const Final_dims_buffer = createGPUBuffer(device, new Uint32Array(Final_dims), GPUBufferUsage.UNIFORM);
+
+//   const bindGroupLayout = device.createBindGroupLayout({
+//       entries: [
+//           { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
+//           { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
+//           { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }
+//       ]
+//   });
+
+//   const bindGroupLayout2 = device.createBindGroupLayout({
+//       entries: [
+//           { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
+//           { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
+//           { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } }
+//       ]
+//   });
+
+//   const pipelineLayout = device.createPipelineLayout({
+//       bindGroupLayouts: [bindGroupLayout, bindGroupLayout2]
+//   });
+
+//   const computePipeline = device.createComputePipeline({
+//       layout: pipelineLayout,
+//       compute: {
+//           module: shaderModule,
+//           entryPoint: "main2",
+//       },
+//   });
+
+//   // Create Command Encoder & Compute Pass
+//   const commandEncoder = device.createCommandEncoder();
+//   let passEncoder = commandEncoder.beginComputePass();
+//   passEncoder.setPipeline(computePipeline);
+
+//   // First multiplication (A * B -> D)
+//   let bindGroup = device.createBindGroup({
+//       layout: bindGroupLayout,
+//       entries: [
+//           { binding: 0, resource: { buffer: A_buffer } },
+//           { binding: 1, resource: { buffer: B_buffer } },
+//           { binding: 2, resource: { buffer: D_buffer } },
+//       ],
+//   });
+
+//   let bindGroup2 = device.createBindGroup({
+//       layout: bindGroupLayout2,
+//       entries: [
+//           { binding: 0, resource: { buffer: A_dims_buffer } },
+//           { binding: 1, resource: { buffer: B_dims_buffer } },
+//           { binding: 2, resource: { buffer: D_dims_buffer } },
+//       ],
+//   });
+
+//   passEncoder.setBindGroup(0, bindGroup);
+//   passEncoder.setBindGroup(1, bindGroup2);
+
+//   const workgroupCountX = Math.ceil(D_dims[0] / 16);
+//   const workgroupCountY = Math.ceil(D_dims[1] / 16);
+//   passEncoder.dispatchWorkgroups(workgroupCountX, workgroupCountY);
+//   // passEncoder.end();
+
+//   // passEncoder = commandEncoder.beginComputePass();
+//   // passEncoder.setPipeline(computePipeline);
+
+//   // Second multiplication (D * C -> Final)
+//   bindGroup = device.createBindGroup({
+//       layout: bindGroupLayout,
+//       entries: [
+//           { binding: 0, resource: { buffer: D_buffer } },
+//           { binding: 1, resource: { buffer: C_buffer } },
+//           { binding: 2, resource: { buffer: Final_buffer } },
+//       ],
+//   });
+
+//   bindGroup2 = device.createBindGroup({
+//       layout: bindGroupLayout2,
+//       entries: [
+//           { binding: 0, resource: { buffer: D_dims_buffer } },
+//           { binding: 1, resource: { buffer: C_dims_buffer } },
+//           { binding: 2, resource: { buffer: Final_dims_buffer } },
+//       ],
+//   });
+
+//   passEncoder.setBindGroup(0, bindGroup);
+//   passEncoder.setBindGroup(1, bindGroup2);
+
+//   const workgroupCountX2 = Math.ceil(Final_dims[0] / 16);
+//   const workgroupCountY2 = Math.ceil(Final_dims[1] / 16);
+//   passEncoder.dispatchWorkgroups(workgroupCountX2, workgroupCountY2);
+  
+//   passEncoder.end();
+
+//   device.queue.submit([commandEncoder.finish()]);
+//   let s = performance.now();
+//   await device.queue.onSubmittedWorkDone();
+//   console.log('f', performance.now()- s)
+//   // Read the final result
+//   // const result1 = await readGPUBuffer(device, C_buffer);
+//   // const result = await readGPUBuffer(device, D_buffer);
+//   const result2 = await readGPUBuffer(device, Final_buffer);
+//   // console.log("C Matrix:", result1);
+//   // console.log("D Matrix:", result);
+//   console.log('r', performance.now()- s)
+//   console.log("Final Matrix:", result2);
+// }
+
+// async function readGPUBuffer(device, buffer) {
+//   const gpuReadBuffer = device.createBuffer({
+//     size: buffer.size,
+//     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+//   });
+
+//   const commandEncoder = device.createCommandEncoder();
+//   commandEncoder.copyBufferToBuffer(buffer, 0, gpuReadBuffer, 0, buffer.size);
+//   device.queue.submit([commandEncoder.finish()]);
+
+//   await gpuReadBuffer.mapAsync(GPUMapMode.READ);
+//   const result = Array.from(new Float32Array(gpuReadBuffer.getMappedRange()));
+//   gpuReadBuffer.unmap();
+//   return result;
+// }
+
+// function createGPUBuffer(device, data, usage) {
+//   const buffer = device.createBuffer({
+//       size: data.byteLength,
+//       usage: usage | GPUBufferUsage.COPY_DST,
+//       mappedAtCreation: true,
+//   });
+
+//   new data.constructor(buffer.getMappedRange()).set(data);
+//   buffer.unmap();
+//   return buffer;
+// }
+
+
+// // // Define test matrices A, B, C
+// const A = new Float32Array([...seq(0, 4096 * 4096)]); // 2x3 matrix
+
+// const B = new Float32Array([...seq(0, 3 * 3)]); // 3x2 matrix
+
+// const C = new Float32Array([...seq(0, 4096 * 10)]); // 2x2 matrix
+
+// // // Define dimensions for the matrices
+// const A_dims = [4096, 4096, 0, 4096 * 4096]; // A is 2x3
+// const B_dims = [3, 3, 0, 3 * 3]; // B is 3x2
+// const C_dims = [4094, 4094, 0, 4094 * 4094]; // C is 2x2
+
+// // Run the matrix multiplication
+// // runMatrixMultiply(A, B, C, A_dims, B_dims, C_dims);
+// runMatrixMultiply2(A, B, A_dims, B_dims);

@@ -97,6 +97,6 @@ export default async function matrixMultiplication(a, b, output) {
   await device.queue.onSubmittedWorkDone();
   console.timeEnd('mult')
 
-  console.log(await Tensor.sendToMain(output))
+  // console.log(await Tensor.sendToMain(output))
   
 }

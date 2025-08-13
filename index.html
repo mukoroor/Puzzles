@@ -9,6 +9,16 @@
     <title>Document</title>
   </head>
   <body>
-    <canvas></canvas>
+    <div>
+    <label for="matrixSize">Matrix Size:</label>
+    <input type="number" id="matrixSize" value="512" min="1" max="8192">
+  </div>
+  <div>
+    <label for="warmupRuns">Warmup Runs:</label>
+    <input type="number" id="warmupRuns" value="5" min="1" max="100">
+  </div>
+  <button id="runMatrixMultiplyBtn">Run Matrix Multiply</button>
+  <div id="flopsResults"></div>
+    <!-- <canvas></canvas> -->
   </body>
 </html>

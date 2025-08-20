@@ -1,3 +1,4 @@
+import { requestWGPUDevice } from "../NeuralNetwork/Tensor/DeviceDecorators/index.js";
 import matrixMultiplication from "../NeuralNetwork/Tensor/OperationsGPU.js";
 import * as Tensor from '../NeuralNetwork/Tensor/Tensor.js'
 
@@ -24,24 +25,115 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-async function runMatrixMultiplyWithStats(size, warmupRuns) {
-  if (!navigator.gpu) {
-      console.error("WebGPU not supported on this browser.");
-      return;
-  }
+// UI for accuracy test
+document.addEventListener("DOMContentLoaded", () => {
+  const testBtn = document.createElement("button");
+  testBtn.textContent = "Test Matrix Multiplication Accuracy";
+  document.body.appendChild(testBtn);
 
-  // Request WebGPU Adapter & Device
-  const adapter = await navigator.gpu.requestAdapter();
-  const device = await adapter.requestDevice({
-    // requiredFeatures: ["subgroups"],
+  const accuracyDiv = document.createElement("div");
+  accuracyDiv.id = "accuracyResults";
+  document.body.appendChild(accuracyDiv);
+
+  testBtn.addEventListener("click", async () => {
+    // Simple 2x2 matrices for accuracy test
+    const A = Tensor.from([1, 2, 3, 4], [2, 2], Float16Array);
+    const B = Tensor.from([5, 6, 7, 8], [2, 2], Float16Array);
+
+    // const A = Tensor.from([1, 2, 0, 0, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [4, 4], Float16Array);
+    // const B = Tensor.from([5, 6, 0, 0, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [4, 4], Float16Array);
+
+
+    // Expected result: [[1*5+2*7, 1*6+2*8], [3*5+4*7, 3*6+4*8]]
+    const expected = [
+      [1*5+2*7, 1*6+2*8],
+      [3*5+4*7, 3*6+4*8]
+    ].flat();
+
+    const wgpu_device = await requestWGPUDevice();
+    const A_gpu = await Tensor.sendToDevice(A, wgpu_device);
+    const B_gpu = await Tensor.sendToDevice(B, wgpu_device);
+
+    const resultTensor = await matrixMultiplication(A_gpu, B_gpu);
+    const result = (await Tensor.sendToDevice(resultTensor)).data;
+
+    const isAccurate = equals(result, expected);
+
+    accuracyDiv.innerHTML = `
+      <b>Matrix A:</b> [${A.data}]<br>
+      <b>Matrix B:</b> [${B.data}]<br>
+      <b>Expected:</b> [${expected}]<br>
+      <b>Result:</b> [${result}]<br>
+      <b>Accurate:</b> ${isAccurate ? "✅" : "❌"}
+    `;
   });
+});
+
+// UI for customizable accuracy test
+document.addEventListener("DOMContentLoaded", () => {
+  const accuracyControls = document.createElement("div");
+  accuracyControls.innerHTML = `
+    <label>Rows A: <input type="number" id="rowsA" value="5" min="1" style="width:50px"></label>
+    <label>Cols A / Rows B: <input type="number" id="colsA" value="5" min="1" style="width:50px"></label>
+    <label>Cols B: <input type="number" id="colsB" value="5" min="1" style="width:50px"></label>
+    <button id="customTestBtn">Test Matrix Multiplication Accuracy</button>
+    <div id="customAccuracyResults"></div>
+  `;
+  document.body.appendChild(accuracyControls);
+
+  document.getElementById("customTestBtn").addEventListener("click", async () => {
+    const rowsA = parseInt(document.getElementById("rowsA").value, 10);
+    const colsA = parseInt(document.getElementById("colsA").value, 10);
+    const colsB = parseInt(document.getElementById("colsB").value, 10);
+
+    // Fill A and B with simple sequential numbers for easy checking
+    const A_data = Array.from({length: rowsA * colsA}, (_, i) => i + 1);
+    const B_data = Array.from({length: colsA * colsB}, (_, i) => i + 1);
+
+    const A = Tensor.from(A_data, [rowsA, colsA], Float16Array);
+    console.log('b')
+    const B = Tensor.from(B_data, [colsA, colsB], Float16Array);
+
+    // Compute expected result on CPU
+    const expected = [];
+    for (let i = 0; i < rowsA; i++) {
+      for (let j = 0; j < colsB; j++) {
+        let sum = 0;
+        for (let k = 0; k < colsA; k++) {
+          sum += A_data[i * colsA + k] * B_data[k * colsB + j];
+        }
+        expected.push(sum);
+      }
+    }
+
+    const wgpu_device = await requestWGPUDevice();
+    const A_gpu = await Tensor.sendToDevice(A, wgpu_device);
+    const B_gpu = await Tensor.sendToDevice(B, wgpu_device);
+
+    const resultTensor = await matrixMultiplication(A_gpu, B_gpu);
+    const result = await Tensor.sendToDevice(resultTensor);
+
+    const isAccurate = equals(result.data, expected);
+
+    document.getElementById("customAccuracyResults").innerHTML = `
+      <b>Matrix A:</b> [${A_data}]<br>
+      <b>Matrix B:</b> [${B_data}]<br>
+      <b>Expected:</b> [${expected}]<br>
+      <b>Result:</b> [${result.data}]<br>
+      <b>Accurate:</b> ${isAccurate ? "✅" : "❌"}
+    `;
+  });
+});
+
+async function runMatrixMultiplyWithStats(size, warmupRuns) {
+  const wgpu_device = await requestWGPUDevice();
 
   // Generate random matrices
-  const A = Tensor.from([...seq(0, size * size)], [size, size], Float32Array);
-  const B = Tensor.from([...seq(0, size * size)], [size, size], Float32Array);
+  const A = Tensor.from([...seq(0, size * size)], [size, size], Float16Array);
+  const B = Tensor.from([...seq(0, size * size)], [size, size], Float16Array);
 
-  const A_gpu = await Tensor.sendToGPUDevice(A, device);
-  const B_gpu = await Tensor.sendToGPUDevice(B, device);
+  const A_gpu = await Tensor.sendToDevice(A, wgpu_device);
+  const B_gpu = await Tensor.sendToDevice(B, wgpu_device);
 
   let times = [];
   for (let i = 0; i < warmupRuns; i++) {

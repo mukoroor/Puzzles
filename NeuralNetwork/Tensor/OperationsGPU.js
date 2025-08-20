@@ -1,5 +1,5 @@
 import * as Tensor from './Tensor.js'
-import { from } from '../../GPU-Connector-API/buffer.js';
+import { from as buffer_from } from '../../GPU-Connector-API/buffer.js';
 import { SHADER, SHADER_ENTRY_POINT, TILE_BLOCK_DIM, TILE_SIZE } from './shaders/MatrixMultiplication.js';
 
 function buildOperationPipeline(device, shaderModule, shaderEntryPoint, buffers) {
@@ -37,7 +37,7 @@ function buildOperationPipeline(device, shaderModule, shaderEntryPoint, buffers)
 
 export default async function matrixMultiplication(a, b, output) {
   console.time('mult')
-  const device = a.host_device
+  const device = a.device
 
   // Load WGSL Shader
   const shaderModule = device.createShaderModule({
@@ -45,30 +45,21 @@ export default async function matrixMultiplication(a, b, output) {
   });
 
   if (a.type != b.type || (output && b.type != output.type)) throw new Error('type mismatch')
-  if (device != b.host_device || (output && device != output.host_device)) throw new Error('tensor on different devices')
+  if (device != b.device || (output && device != output.device)) throw new Error('tensor on different devices')
 
-  let aDims, bDims, outDims;
+  let aDims = a.size, bDims = b.size, outDims;
   if (output) {
-    [aDims, bDims, outDims] = await Promise.all([
-          Tensor.extractSize(a),
-          Tensor.extractSize(b),
-          Tensor.extractSize(output),
-      ]);
-
+      outDims = output.size;
       if (outDims[0] != aDims[0] || outDims[1] != bDims[1]) throw new Error('Incorrect Dimensions')
   } else {
-    [aDims, bDims] = await Promise.all([
-          Tensor.extractSize(a),
-          Tensor.extractSize(b),
-      ])
-
     outDims = [aDims[0], bDims[1]]
-    const totalSize = outDims.reduce((a, c) => a * c);
 
-    output = await Tensor.sendToGPUDevice(Tensor.from(new (a.type)(totalSize), outDims), device)
+    output = Tensor.empty(outDims, a.type, device)
   }
   
-  const allDims = await from(device, new Uint32Array([...aDims, ...bDims, ...outDims]), GPUBufferUsage.UNIFORM)
+  const dims_arr = [...aDims, ...bDims, ...outDims].map(e => e % 4 ? (e + 3) & ~3: e)
+
+  const allDims = await buffer_from(device, new Uint32Array(dims_arr) , GPUBufferUsage.UNIFORM)
   const [computePipeline, bindGroup] = buildOperationPipeline(device, shaderModule, SHADER_ENTRY_POINT, 
     [
         a.data,
@@ -97,6 +88,5 @@ export default async function matrixMultiplication(a, b, output) {
   await device.queue.onSubmittedWorkDone();
   console.timeEnd('mult')
 
-  // console.log(await Tensor.sendToMain(output))
-  
+  return output
 }

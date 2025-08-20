@@ -1,126 +1,62 @@
 /**
  * @typedef {Object} Tensor
  * @property {TypedArray|GPUBuffer} data
- * @property {Int32Array|GPUBuffer} size
+ * @property {Int32Array} size
  * @property {TypedArray} type
- * @property {Number} [host_id]
- * @property {GPUDevice} [host_device] ?????
+ * @property {GPUBuffer} [gpu_size]
+ * @property {Object} device
  */
 
-import * as Buffer from '../../GPU-Connector-API/buffer.js'
-import { F32_to_I32 } from './shaders/typeConversion.js';
+import { DEVICE_TYPES, requestCPUDevice } from './DeviceDecorators/index.js';
 
 const HOST_TYPES = {
-    MAIN_HOST: { baseName: 'MAIN' },
     GPU_DEVICE_HOST: { baseName: 'GPU_DEVICE' , allowedTypes:  {
         Float32Array,
         Int32Array,
         Uint32Array,
     } },
-    WEB_WORKER_HOST: { baseName: 'WEB_WORKER' },
 }
-const HOST_TYPES_TO_IDS = Object.fromEntries(Object.keys(HOST_TYPES).map((k, i) => [k, i]));
-const HOST_IDS_TO_TYPES = Object.fromEntries(Object.keys(HOST_TYPES).map((k, i) => [i, k]));
-
 const TypedArray = Object.getPrototypeOf(Int8Array);
 
 const tensorHandler = {
     get(target, property, receiver) {
-        if (property == 'hostName') {
-            if (target.host_device) {
-                return `${HOST_TYPES.GPU_DEVICE_HOST.baseName}:${target.host_id}`
-            } else if (target.host_id) {
-                return `${HOST_TYPES.WEB_WORKER_HOST.baseName}:${target.host_id}`
-            } else {
-                return HOST_TYPES.MAIN_HOST.baseName
-            }
-        } else if (property == 'host') {
-            if (target.host_device) {
-                return HOST_TYPES_TO_IDS.GPU_DEVICE_HOST
-            } else if (target.host_id) {
-                return HOST_TYPES_TO_IDS.WEB_WORKER_HOST
-            } else {
-                return HOST_TYPES_TO_IDS.MAIN_HOST
-            }
+        if (property == 'deviceType') {
+          return target.device.deviceType
         }
         return Reflect.get(target, property, receiver);
     },
 
     set(target, property, value, reciever) {
-        if (property == 'host_id' || property == 'host_device' || property == 'type') return
-        Reflect.set(target, property, value, reciever)
+        return
     }
-}
-
-
-function validate(data, size) {
-    return data.length == size.reduce((a, c) => a * c);
 }
 
 export async function toString(t) {
-    const mainTensor = await sendToMain(t)
     return `Tensor {
-        size: ${mainTensor.size},
-        data: ${mainTensor.data}
+        size: ${new Array(t.size)},
+        data: ${await t.device.toString(data, t.type)}
         type: ${t.type.name}
-    }`
-}
-
-
-export function get(/**@type {Tensor}*/ t, ...idx) {
-    const cumulativeSteps = t.size.reduce((a, c) => [...a, a.at(-1) * c], [1]);
-    return t.data[idx.reduce((a, c, i) => a + c * cumulativeSteps[i])];
-}
-
-export async function sendToMain(t) {
-    switch (t.host) {
-        case HOST_TYPES_TO_IDS.GPU_DEVICE_HOST:
-            const [copiedData, copiedSize] = await Promise.all([
-                Buffer.extract(t.host_device, t.data, t.type),
-                Buffer.extract(t.host_device, t.size, Uint32Array)
-            ])
-            return from(copiedData, copiedSize, t.type)
-        case HOST_TYPES_TO_IDS.WEB_WORKER_HOST:
-            // ???
-            break;
-        default:
-            break;
+        device: ${t.deviceType}
+        }`
     }
-}
-
-export async function sendToGPUDevice(t, device) {
-    switch (t.host) {
-        case HOST_TYPES_TO_IDS.MAIN_HOST:
-            const [copiedData, copiedSize] = await Promise.all([
-                Buffer.from(device, t.data, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC, 'tensor_data'),
-                Buffer.from(device, t.size, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC, 'tensor_size'),
-            ])
-
-            return tensorProxy({ 
-                data: copiedData,
-                size: copiedSize,
-                type: t.type,
-                host_device: device,
-            })
-        case HOST_TYPES_TO_IDS.WEB_WORKER_HOST:
-            // ???
-            break;
-        default:
-            break;
-    }
-}
-
-export function sendToWorker(t) {
     
+export async function sendToDevice(t, device = requestCPUDevice()) {
+    let data = t.data
+    if (t.deviceType != DEVICE_TYPES.CPU) data = await t.device.sendToMainThread(t.data, t.size, t.type);
+
+    return from(data, t.size, t.type, device);
+}
+    
+function tensorProxy(tensorData) { return new Proxy(tensorData, tensorHandler) }
+    
+function validate(data, size) {
+    return data.length <= size.reduce((a, c) => a * c);
 }
 
-function tensorProxy(tensorData) { return new Proxy(tensorData, tensorHandler) }
-
-export function from(data, size, type) {
+export function from(data, size, type = Float32Array, device = requestCPUDevice()) {
     if (!data) return;
 
     size = new Uint32Array(size || [data.length, 1]);
-    type = type || Float32Array
 
     if (!validate(data, size)) return;
 
@@ -128,132 +64,58 @@ export function from(data, size, type) {
         data = (type).from(data)
     }
 
-    return tensorProxy({ data, size, type })
+    data = device.initialize(data, size, 'tensor_data', 'ab')
+    const gpu_size = device.type === DEVICE_TYPES.WGPU ? device.initialize(size, [2], 'tensor_size'): null
+
+    return tensorProxy({ data, size, type, gpu_size, device })
+}
+
+export function empty(size, type = Float32Array, device = requestCPUDevice()) {
+    size = new Uint32Array(size);
+
+    const data = device.allocate([...size, type.BYTES_PER_ELEMENT], 'tensor_data')
+    const gpu_size = device.type === DEVICE_TYPES.WGPU ? device.initialize(size, [2], 'tensor_size'): null
+
+    return tensorProxy({ data, size, type, gpu_size, device })
 }
 
 export async function clone(t) {
-    let data, size;
-    switch (t.host) {
-        case HOST_TYPES_TO_IDS.GPU_DEVICE_HOST:
-            [data, size] =  await Promise.all([
-                Buffer.clone(t.host_device, t.data),
-                Buffer.clone(t.host_device, t.size),
-            ])
-            break
-
-        default:
-            data = new (t.type)(t.data)
-            size = new Uint32Array(t.size)
-    }
+    const [data, size, gpu_size] = await Promise.all([
+        t.device.clone(t.data),
+        t.device.clone(t.size),
+        (t.gpu_size ? t.device.clone(t.size) : null),
+    ])
 
     return tensorProxy({
         ...t,
         data,
         size,
+        gpu_size
     })
 }
 
-async function convert(t, TypedArray, mapFn) {
-    console.time('convert')
-    if (t.type == TypedArray) return;
-       
-    const host = t.host;
-    const allowedTypes = HOST_TYPES[HOST_IDS_TO_TYPES[host]].allowedTypes
-    if (allowedTypes && !allowedTypes[TypedArray.name]) return;
+async function convert(t, TypedArray) {
+    const [data, clonedTensor] = await Promise.all([
+        t.device.convert(t.data, TypedArray),
+        clone(t),
+    ])
 
-    switch (t.host) {
-        case HOST_TYPES_TO_IDS.GPU_DEVICE_HOST: {
-
-            // const mainTensor = await sendToMain(t);
-            // const newData = TypedArray.from(mainTensor.data, mapFn);
-            // const newTensor = from(newData, t.size);
-            // return await sendToGPUDevice(newTensor, t.host_device)
-
-            const clonedTensor = await clone(t)
-
-            const convertShader = t.host_device.createShaderModule({
-                code: F32_to_I32
-            })
-
-            const bindGroupLayout = t.host_device.createBindGroupLayout({
-                entries: [
-                    { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
-                    { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
-                ]
-            });
-
-            const pipelineLayout = t.host_device.createPipelineLayout({
-                bindGroupLayouts: [bindGroupLayout]
-            });
-
-            const computePipeline = t.host_device.createComputePipeline({
-                layout: pipelineLayout,
-                compute: {
-                    module: convertShader,
-                    entryPoint: 'convert',
-                },
-            });
-
-            const bindGroup = t.host_device.createBindGroup({
-                layout: bindGroupLayout,
-                entries: [
-                    { binding: 0, resource: { buffer: t.data} },
-                    { binding: 1, resource: { buffer: clonedTensor.data} }
-                ]
-            });
-
-            const commandEncoder = t.host_device.createCommandEncoder();
-            const passEncoder = commandEncoder.beginComputePass();
-            passEncoder.setPipeline(computePipeline);
-            passEncoder.setBindGroup(0, bindGroup);
-        
-            // Dispatch Compute Workgroups
-            passEncoder.dispatchWorkgroups(t.data.size / (256 * 4));
-            
-            passEncoder.end();
-        
-            
-            const commands = commandEncoder.finish();
-            t.host_device.queue.submit([commands]);
-            await t.host_device.queue.onSubmittedWorkDone();
-
-            console.timeEnd('convert')
-            return tensorProxy({ ...clonedTensor, type: TypedArray })
-        } default: {
-            const newData = TypedArray.from(t.data, mapFn);
-            console.timeEnd('convert')
-            return from(newData, t.size);
-        }
-    }
-}
-
-export async function extractData(t) {
-    if (t.data instanceof TypedArray) return t.data;
-    return await Buffer.extract(t.host_device, t.data, t.type)
-}
-
-export async function extractSize(t) {
-    if (t.size instanceof TypedArray) return t.size;
-    return await Buffer.extract(t.host_device, t.size, Uint32Array)
+    return tensorProxy({
+        ...clonedTensor,
+        data,
+    })
 }
 
 export async function transform(t, mapFn) {
-    switch (t.host) {
-        case HOST_TYPES_TO_IDS.GPU_DEVICE_HOST: {
-            const [originalData, size] = await Promise.all([
-                Buffer.extract(t.host_device, t.data, t.type),
-                Buffer.extract(t.host_device, t.size, Uint32Array)
-            ]);
+    const [data, clonedTensor] = await Promise.all([
+        t.device.transform(t.data, mapFn),
+        clone(t),
+    ])
 
-            const newData = (t.type).from(originalData, mapFn);
-            const newTensor = from(newData, size)
-
-            return sendToGPUDevice(newTensor, t.device);
-        } default: {
-            const newData = (t.type).from(t.data, mapFn);
-            return from(newData, t.size);
-        }
-    }
+    return tensorProxy({
+        ...clonedTensor,
+        data,
+    })
 }
 
 export async function round(t) {

@@ -7,25 +7,33 @@ const VEC_TYPES = {
         wgsl: /*wgsl */`vec4f`,
         size: 4
     },
-    VEC2I: {
-        wgsl: /*wgsl */`vec2i`,
+    VEC2H: {
+        wgsl: /*wgsl */`vec2h`,
         size: 2
     },
-    VEC4I: {
-        wgsl: /*wgsl */`vec4i`,
+    VEC4H: {
+        wgsl: /*wgsl */`vec4h`,
         size: 4
     },
-    VEC2U: {
-        wgsl: /*wgsl */`vec2u`,
-        size: 2
-    },
-    VEC4U: {
-        wgsl: /*wgsl */`vec4u`,
-        size: 4
-    },
+    // VEC2I: {
+    //     wgsl: /*wgsl */`vec2i`,
+    //     size: 2
+    // },
+    // VEC4I: {
+    //     wgsl: /*wgsl */`vec4i`,
+    //     size: 4
+    // },
+    // VEC2U: {
+    //     wgsl: /*wgsl */`vec2u`,
+    //     size: 2
+    // },
+    // VEC4U: {
+    //     wgsl: /*wgsl */`vec4u`,
+    //     size: 4
+    // },
 }
 
-const VEC_TYPE = VEC_TYPES.VEC4F
+const VEC_TYPE = VEC_TYPES.VEC4H
 
 const A_NAME = 'A'
 const B_NAME = 'B'
@@ -47,6 +55,8 @@ export const TILE_SIZE = VEC_TYPE.size;
 export const TILE_BLOCK_DIM = 16;
 
 export const SHADER = /*wgsl*/`
+    enable f16;
+
     struct Dims {
         aDims: vec2u,
         bDims: vec2u,
@@ -69,7 +79,7 @@ export const SHADER = /*wgsl*/`
     const STEP = TILE_SIZE * TILE_BLOCK_DIM;
     const STEP_VEC = STEP / VEC_SIZE;
 
-    alias TileBlock = mat${VEC_TYPE.size}x${VEC_TYPE.size}f;
+    alias TileBlock = mat${VEC_TYPE.size}x${VEC_TYPE.size}h;
 
     @compute @workgroup_size(TILE_BLOCK_DIM, TILE_BLOCK_DIM)
     fn ${SHADER_ENTRY_POINT}(
@@ -93,7 +103,7 @@ export const SHADER = /*wgsl*/`
         var ${IDX_MACRO(IDX_C)} = tot_row * bD4 + tot_col;
         ${IDX_INITIALIZE_MACRO(IDX_C, 'bD4')}
 
-        for (var i: u32 = 0; i < u32(ceil(f32(productDims.aDims.y) / f32(TILE_SIZE))); i++) {   
+        for (var i: u32 = 0; i < productDims.aDims.y / TILE_SIZE; i++) {   
             aMat = TileBlock(
                 ${BLOCK_ACCESS_MACRO(IDX_A, A_NAME)}
             );
@@ -108,8 +118,9 @@ export const SHADER = /*wgsl*/`
             ${IDX_INCREMENT_MACRO(IDX_B, 'B_ROW_STEP')}
         }
 
-        if (tot_row < productDims.aDims.x && tot_col < productDims.bDims.y) {
+        if (tot_row < productDims.aDims.x && tot_col < productDims.bDims.y / VEC_SIZE) {
             ${BLOCK_ASSIGN_MACRO(IDX_C, 'cMat', C_NAME)}
         }
     }
 `
+console.log(SHADER)
